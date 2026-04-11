@@ -1,6 +1,6 @@
 import { TIMES, TIME_ICONS, TIME_COLORS } from '../utils'
 
-export default function TodayTab({ data, isTaken, toggleTaken, pct, takenDoses, totalDoses }) {
+export default function TodayTab({ data, isTaken, toggleTaken, pct, takenDoses, totalDoses, stockAlerts }) {
   const groupedByTime = TIMES.map(time => ({
     time,
     meds: data.meds.filter(m => m.times?.includes(time))
@@ -8,6 +8,18 @@ export default function TodayTab({ data, isTaken, toggleTaken, pct, takenDoses, 
 
   return (
     <div>
+      {/* Stock alerts */}
+      {stockAlerts?.length > 0 && (
+        <div style={{ background: '#ef444422', border: '1px solid #ef444444', borderRadius: 10, padding: 12, marginBottom: 14 }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: '#ef4444', marginBottom: 6 }}>⚠️ מלאי נמוך</p>
+          {stockAlerts.map(m => (
+            <p key={m.id} style={{ fontSize: 12, color: '#fca5a5', marginTop: 2 }}>
+              {m.name} – נשארו {m.stockCount} טבליות
+            </p>
+          ))}
+        </div>
+      )}
+
       {/* Progress Card */}
       <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 12, padding: 16, marginBottom: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
@@ -45,13 +57,19 @@ export default function TodayTab({ data, isTaken, toggleTaken, pct, takenDoses, 
                 background: '#161b22', borderRadius: 10, padding: '12px 14px', marginBottom: 8,
                 display: 'flex', alignItems: 'center', gap: 12, transition: 'all 0.2s',
                 border: `1px solid ${taken ? '#238636' : '#30363d'}`,
-                opacity: taken ? 0.72 : 1,
+                opacity: taken ? 0.75 : 1,
               }}>
-                <div style={{ width: 10, height: 10, borderRadius: '50%', background: med.color || '#58a6ff', flexShrink: 0 }} />
+                {med.photo
+                  ? <img src={med.photo} alt={med.name} style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} />
+                  : <div style={{ width: 10, height: 10, borderRadius: '50%', background: med.color || '#58a6ff', flexShrink: 0 }} />
+                }
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: 15, textDecoration: taken ? 'line-through' : 'none', color: taken ? '#8b949e' : '#e6edf3' }}>{med.name}</div>
                   {med.dose && <div style={{ fontSize: 12, color: '#8b949e' }}>{med.dose}</div>}
                   {med.instructions && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 2 }}>📋 {med.instructions}</div>}
+                  {med.stockCount && Number(med.stockCount) <= Number(med.stockAlert || 0) && (
+                    <div style={{ fontSize: 11, color: '#ef4444', marginTop: 2 }}>⚠️ מלאי נמוך: {med.stockCount} נותרו</div>
+                  )}
                 </div>
                 <button onClick={() => toggleTaken(med.id, time)} style={{
                   borderRadius: 8, border: 'none', cursor: 'pointer', padding: '7px 12px',
