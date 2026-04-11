@@ -20,12 +20,13 @@ const FOOD_TYPES = [
 
 const DIAPER_LABELS = { pee: '💧 פיפי', poop: '💩 קקי', both: '💧💩 שניהם' }
 
-export default function BabyTab({ data, update, profileName, profile, babyLog: babyLogProp }) {
+export default function BabyTab({ data, update, profileName, profile, babyLog: babyLogProp, activeProfileId }) {
   const { dateKey, dateLabel, isToday, goBack, goForward } = useDateNav()
 
   // Always read from prop (reactive) with fallback to data
+  const profileId = activeProfileId || data.activeProfile
   const allBabyLog = babyLogProp || data.babyLog || []
-  const dayLog = allBabyLog.filter(l => l.profileId === data.activeProfile && l.date === dateKey)
+  const dayLog = allBabyLog.filter(l => l.profileId === profileId && l.date === dateKey)
 
   const feeds   = dayLog.filter(l => l.type === 'feed').sort((a,b) => a.time > b.time ? -1 : 1)
   const diapers = dayLog.filter(l => l.type === 'diaper').sort((a,b) => a.time > b.time ? -1 : 1)
@@ -36,14 +37,14 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
   const setFF = (k, v) => setFeedForm(f => ({ ...f, [k]: v }))
 
   const addFeed = () => {
-    const entry = { id: uid(), profileId: data.activeProfile, date: dateKey, type: 'feed', ...feedForm }
+    const entry = { id: uid(), profileId: profileId, date: dateKey, type: 'feed', ...feedForm }
     update(prev => ({ ...prev, babyLog: [...(prev.babyLog || []), entry] }))
     setFeedModal(false)
     setFeedForm({ type: 'breast', amount: '', duration: '', time: timeNow(), notes: '' })
   }
 
   const addDiaper = (kind) => {
-    const entry = { id: uid(), profileId: data.activeProfile, date: dateKey, type: 'diaper', kind, time: timeNow() }
+    const entry = { id: uid(), profileId: profileId, date: dateKey, type: 'diaper', kind, time: timeNow() }
     update(prev => ({ ...prev, babyLog: [...(prev.babyLog || []), entry] }))
   }
 
