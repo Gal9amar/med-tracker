@@ -164,6 +164,7 @@ export default function App() {
             pct={pct} takenDoses={takenDoses} totalDoses={totalDoses}
             stockAlerts={stockAlerts}
             inventory={data.inventory}
+            babyLog={data.babyLog || []}
           />
         )}
         {tab === 'meds'          && <MedsTab data={{ ...data, meds: profileMeds }} update={update} activeProfile={data.activeProfile} setModal={setModal} setEditTarget={setEditTarget} profileName={profileName} />}
