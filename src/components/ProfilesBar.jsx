@@ -68,6 +68,24 @@ function ProfileModal({ initial, onClose, onSave, onDelete, canDelete }) {
             </div>
           )}
 
+          {/* Weight – only for babies/toddlers */}
+          {(derivedCat === 'baby' || derivedCat === 'toddler') && (
+            <div>
+              <label style={{ ...labelStyle, fontWeight: 700, color: '#f9a8d4' }}>⚖️ משקל (ק"ג)</label>
+              <input
+                type="number" value={form.weight || ''}
+                onChange={e => set('weight', e.target.value)}
+                placeholder="לדוג׳ 5.2" step="0.1" min="1" max="15"
+                style={{ ...inputStyle, direction: 'ltr', textAlign: 'center' }}
+              />
+              {form.weight && (
+                <p style={{ fontSize: 11, color: '#8b949e', marginTop: 4 }}>
+                  כמות מומלצת: {Math.round(parseFloat(form.weight) * 150)}–{Math.round(parseFloat(form.weight) * 200)} מ"ל ביום
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Avatar */}
           <div>
             <label style={labelStyle}>אווטר</label>
@@ -121,7 +139,7 @@ export default function ProfilesBar({ data, update, forceOpen, editTarget: exter
   const handleSave = (form) => {
     // Always recalculate category from birthDate on save
     const ageCategory = getCategoryFromBirthDate(form.birthDate)
-    const cleanForm = { name: form.name, avatar: form.avatar, birthDate: form.birthDate, ageCategory }
+    const cleanForm = { name: form.name, avatar: form.avatar, birthDate: form.birthDate, ageCategory, weight: form.weight || null }
 
     if (editTarget) {
       update(d => ({ ...d, profiles: d.profiles.map(p => p.id === editTarget.id ? { ...p, ...cleanForm } : p) }))
