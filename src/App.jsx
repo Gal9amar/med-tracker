@@ -1,11 +1,13 @@
-import { useState } from 'react'
-import { loadData, saveData, uid, todayKey, daysUntilExpiry } from './utils'
+import { useState, useEffect } from 'react'
+import { loadData, saveData, uid, todayKey, daysUntilExpiry, scheduleDailyReminders } from './utils'
 import TodayTab from './tabs/TodayTab'
 import MedsTab from './tabs/MedsTab'
 import InventoryTab from './tabs/InventoryTab'
 import HistoryTab from './tabs/HistoryTab'
 import MedModal from './components/MedModal'
 import InventoryModal from './components/InventoryModal'
+import ProfilesBar from './components/ProfilesBar'
+import NotificationsButton from './components/NotificationsButton'
 
 const TABS = [
   { id: 'today', icon: '📅', label: 'היום' },
@@ -22,63 +24,81 @@ export default function App() {
 
   const update = fn => setData(prev => { const next = fn(prev); saveData(next); return next })
 
+  const activeProfile = data.profiles?.find(p => p.id === data.activeProfile) || data.profiles?.[0]
+  const profileMeds = data.meds.filter(m => m.profileId === data.activeProfile)
+  const profileLog = data.log.filter(l => l.profileId === data.activeProfile)
+
   const today = todayKey()
-  const todayLog = data.log.filter(l => l.date === today)
+  const todayLog = profileLog.filter(l => l.date === today)
+
   const isTaken = (medId, time) => todayLog.some(l => l.medId === medId && l.time === time)
   const toggleTaken = (medId, time) => {
     update(prev => {
-      const exists = prev.log.find(l => l.date === today && l.medId === medId && l.time === time)
+      const exists = prev.log.find(l => l.profileId === data.activeProfile && l.date === today && l.medId === medId && l.time === time)
       return {
         ...prev,
         log: exists
-          ? prev.log.filter(l => !(l.date === today && l.medId === medId && l.time === time))
-          : [...prev.log, { date: today, medId, time, takenAt: new Date().toTimeString().slice(0, 5) }]
+          ? prev.log.filter(l => !(l.profileId === data.activeProfile && l.date === today && l.medId === medId && l.time === time))
+          : [...prev.log, { date: today, medId, time, profileId: data.activeProfile, takenAt: new Date().toTimeString().slice(0, 5) }]
       }
     })
   }
 
-  const totalDoses = data.meds.reduce((s, m) => s + (m.times?.length || 0), 0)
+  const totalDoses = profileMeds.reduce((s, m) => s + (m.times?.length || 0), 0)
   const takenDoses = todayLog.length
   const pct = totalDoses ? Math.round((takenDoses / totalDoses) * 100) : 0
 
   const last7 = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() - (6 - i))
     const key = d.toISOString().slice(0, 10)
-    const dayLog = data.log.filter(l => l.date === key)
+    const dayLog = profileLog.filter(l => l.date === key)
     const p = totalDoses ? Math.round((dayLog.length / totalDoses) * 100) : 0
     return { key, label: d.toLocaleDateString('he-IL', { weekday: 'short' }), pct: Math.min(p, 100) }
   })
 
-  const expiredOrSoon = [...data.meds, ...data.inventory].filter(m => {
+  // Stock alerts
+  const stockAlerts = profileMeds.filter(m =>
+    m.stockCount && m.stockAlert && Number(m.stockCount) <= Number(m.stockAlert)
+  )
+
+  // Expiry alerts
+  const expiredOrSoon = [...profileMeds, ...data.inventory].filter(m => {
     const d = daysUntilExpiry(m.expiry)
     return d !== null && d <= 30
   })
 
+  const alertCount = stockAlerts.length + expiredOrSoon.length
+
   return (
     <div style={{ minHeight: '100vh', background: '#0d1117', paddingBottom: 72 }}>
       {/* Header */}
-      <div style={{ background: 'linear-gradient(135deg,#161b22 0%,#1c2128 100%)', borderBottom: '1px solid #30363d', padding: '14px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ background: 'linear-gradient(135deg,#161b22 0%,#1c2128 100%)', borderBottom: '1px solid #30363d', padding: '12px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: '#e6edf3', letterSpacing: -0.5 }}>💊 MedTracker</h1>
-            <p style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 800, color: '#e6edf3', letterSpacing: -0.5 }}>💊 MedTracker</h1>
+            <p style={{ fontSize: 11, color: '#8b949e', marginTop: 1 }}>
               {new Date().toLocaleDateString('he-IL', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
           </div>
-          {expiredOrSoon.length > 0 && (
-            <div style={{ background: '#f59e0b22', border: '1px solid #f59e0b44', borderRadius: 8, padding: '4px 10px', fontSize: 12, color: '#f59e0b' }}>
-              ⚠️ {expiredOrSoon.length} בתוקף קצר
-            </div>
-          )}
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            {alertCount > 0 && (
+              <div style={{ background: '#f59e0b22', border: '1px solid #f59e0b44', borderRadius: 8, padding: '4px 8px', fontSize: 12, color: '#f59e0b' }}>
+                ⚠️ {alertCount}
+              </div>
+            )}
+            <NotificationsButton meds={profileMeds} profileName={activeProfile?.name || 'אני'} />
+          </div>
         </div>
+        {/* Profiles */}
+        <ProfilesBar data={data} update={update} />
       </div>
 
       {/* Tab Content */}
       <div style={{ padding: 16 }}>
-        {tab === 'today' && <TodayTab data={data} isTaken={isTaken} toggleTaken={toggleTaken} pct={pct} takenDoses={takenDoses} totalDoses={totalDoses} />}
-        {tab === 'meds' && <MedsTab data={data} update={update} setModal={setModal} setEditTarget={setEditTarget} />}
+        {tab === 'today' && <TodayTab data={{ ...data, meds: profileMeds }} isTaken={isTaken} toggleTaken={toggleTaken} pct={pct} takenDoses={takenDoses} totalDoses={totalDoses} stockAlerts={stockAlerts} />}
+        {tab === 'meds' && <MedsTab data={{ ...data, meds: profileMeds }} update={update} activeProfile={data.activeProfile} setModal={setModal} setEditTarget={setEditTarget} />}
         {tab === 'inventory' && <InventoryTab data={data} update={update} setModal={setModal} setEditTarget={setEditTarget} />}
-        {tab === 'history' && <HistoryTab last7={last7} pct={pct} data={data} totalDoses={totalDoses} />}
+        {tab === 'history' && <HistoryTab last7={last7} pct={pct} data={{ ...data, meds: profileMeds }} totalDoses={totalDoses} />}
       </div>
 
       {/* Bottom Nav */}
@@ -97,18 +117,30 @@ export default function App() {
 
       {/* Modals */}
       {modal === 'addMed' && (
-        <MedModal onClose={() => setModal(null)} onSave={med => { update(p => ({ ...p, meds: [...p.meds, { ...med, id: uid() }] })); setModal(null) }} />
+        <MedModal onClose={() => setModal(null)} onSave={med => {
+          update(p => ({ ...p, meds: [...p.meds, { ...med, id: uid(), profileId: data.activeProfile }] }))
+          setModal(null)
+        }} />
       )}
       {modal === 'editMed' && editTarget && (
         <MedModal initial={editTarget} onClose={() => { setModal(null); setEditTarget(null) }}
-          onSave={med => { update(p => ({ ...p, meds: p.meds.map(m => m.id === editTarget.id ? { ...med, id: editTarget.id } : m) })); setModal(null); setEditTarget(null) }} />
+          onSave={med => {
+            update(p => ({ ...p, meds: p.meds.map(m => m.id === editTarget.id ? { ...med, id: editTarget.id, profileId: editTarget.profileId } : m) }))
+            setModal(null); setEditTarget(null)
+          }} />
       )}
       {modal === 'addInventory' && (
-        <InventoryModal onClose={() => setModal(null)} onSave={item => { update(p => ({ ...p, inventory: [...p.inventory, { ...item, id: uid() }] })); setModal(null) }} />
+        <InventoryModal onClose={() => setModal(null)} onSave={item => {
+          update(p => ({ ...p, inventory: [...p.inventory, { ...item, id: uid() }] }))
+          setModal(null)
+        }} />
       )}
       {modal === 'editInventory' && editTarget && (
         <InventoryModal initial={editTarget} onClose={() => { setModal(null); setEditTarget(null) }}
-          onSave={item => { update(p => ({ ...p, inventory: p.inventory.map(i => i.id === editTarget.id ? { ...item, id: editTarget.id } : i) })); setModal(null); setEditTarget(null) }} />
+          onSave={item => {
+            update(p => ({ ...p, inventory: p.inventory.map(i => i.id === editTarget.id ? { ...item, id: editTarget.id } : i) }))
+            setModal(null); setEditTarget(null)
+          }} />
       )}
     </div>
   )
