@@ -9,7 +9,7 @@ import MedModal from './components/MedModal'
 import InventoryModal from './components/InventoryModal'
 import ProfilesBar, { FamilyPanel } from './components/ProfilesBar'
 import NotificationsButton from './components/NotificationsButton'
-import { AGE_CATEGORIES } from './ageProfiles'
+import { AGE_CATEGORIES, getCategoryFromBirthDate } from './ageProfiles'
 
 function getGreeting(name, ageCategory) {
   const h = new Date().getHours()
@@ -56,7 +56,7 @@ export default function App() {
 
   const activeProfile = data.profiles?.find(p => p.id === data.activeProfile) || data.profiles?.[0]
   const profileName = activeProfile?.name || 'אורח'
-  const ageCategory = activeProfile?.ageCategory || 'adult'
+  const ageCategory = getCategoryFromBirthDate(activeProfile?.birthDate) || activeProfile?.ageCategory || 'adult'
   const ageCat = AGE_CATEGORIES.find(c => c.id === ageCategory) || AGE_CATEGORIES[4]
 
   const profileMeds = data.meds.filter(m => m.profileId === data.activeProfile)
@@ -141,6 +141,7 @@ export default function App() {
             update={update}
             profile={activeProfile}
             profileName={profileName}
+            activeProfileId={data.activeProfile}
             isTaken={isTaken}
             toggleTaken={toggleTaken}
             pct={pct} takenDoses={takenDoses} totalDoses={totalDoses}
