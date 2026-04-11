@@ -83,7 +83,7 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
       <DateNavigator dateLabel={dateLabel} isToday={isToday} onBack={goBack} onForward={goForward} color="#f472b6" />
 
       {/* Quick stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: (totalMl > 0 || totalBreastMin > 0) ? 8 : 20 }}>
         {[
           { label: 'האכלות', value: feeds.length,   icon: '🍼', color: '#f472b6' },
           { label: 'חיתולים', value: diapers.length, icon: '🌸', color: '#fb923c' },
@@ -96,6 +96,41 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
           </div>
         ))}
       </div>
+
+      {/* Daily food summary */}
+      {(totalMl > 0 || totalBreastMin > 0) && (
+        <div style={{ background: '#f472b615', border: '1px solid #f472b633', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          {totalMl > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 16 }}>🍼</span>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#f9a8d4' }}>{totalMl} מ"ל</div>
+                <div style={{ fontSize: 10, color: '#8b949e' }}>סה"כ היום</div>
+              </div>
+            </div>
+          )}
+          {totalBreastMin > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 16 }}>🤱</span>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#f9a8d4' }}>{totalBreastMin} דק'</div>
+                <div style={{ fontSize: 10, color: '#8b949e' }}>חלב אם היום</div>
+              </div>
+            </div>
+          )}
+          {profile?.weight && totalMl > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 16 }}>📊</span>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: Math.round(totalMl / (parseFloat(profile.weight) * 150) * 100) >= 80 ? '#22c55e' : '#f59e0b' }}>
+                  {Math.round(totalMl / (parseFloat(profile.weight) * 150) * 100)}%
+                </div>
+                <div style={{ fontSize: 10, color: '#8b949e' }}>מהיעד</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── FEEDING ── */}
       <Section title="🍼 האכלה" color="#f472b6">
