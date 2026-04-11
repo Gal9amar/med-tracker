@@ -8,6 +8,7 @@ import MedModal from './components/MedModal'
 import InventoryModal from './components/InventoryModal'
 import ProfilesBar from './components/ProfilesBar'
 import NotificationsButton from './components/NotificationsButton'
+import PrescriptionsTab from './tabs/PrescriptionsTab'
 
 function getGreeting(name) {
   const h = new Date().getHours()
@@ -25,13 +26,14 @@ function getTabLabel(id, name) {
     case 'today':     return `${timeOfDay} שלך`
     case 'meds':      return `הטיפול של ${name}`
     case 'inventory': return `ארון התרופות`
+    case 'prescriptions': return 'המרשמים שלי'
     case 'history':   return `איך עובר עליך?`
     default: return id
   }
 }
 
-const TAB_ICONS = { today: '🌸', meds: '💊', inventory: '🏠', history: '📊' }
-const TAB_IDS = ['today', 'meds', 'inventory', 'history']
+const TAB_ICONS = { today: '🌸', meds: '💊', inventory: '🏠', prescriptions: '📋', history: '📊' }
+const TAB_IDS = ['today', 'meds', 'inventory', 'prescriptions', 'history']
 
 export default function App() {
   const [data, setData] = useState(loadData)
@@ -81,7 +83,12 @@ export default function App() {
     const d = daysUntilExpiry(m.expiry)
     return d !== null && d <= 30
   })
-  const alertCount = stockAlerts.length + expiredOrSoon.length
+  const prescriptionAlerts = (data.prescriptions || []).filter(p => {
+    if (p.profileId !== data.activeProfile) return false
+    const d = daysUntilRenewal(p.date, p.months)
+    return d !== null && d <= 14
+  })
+  const alertCount = stockAlerts.length + expiredOrSoon.length + prescriptionAlerts.length
 
   return (
     <div style={{ minHeight: '100vh', background: '#0d1117', paddingBottom: 80 }}>
@@ -115,6 +122,7 @@ export default function App() {
         {tab === 'meds'      && <MedsTab data={{ ...data, meds: profileMeds }} update={update} activeProfile={data.activeProfile} setModal={setModal} setEditTarget={setEditTarget} profileName={profileName} />}
         {tab === 'inventory' && <InventoryTab data={data} update={update} setModal={setModal} setEditTarget={setEditTarget} />}
         {tab === 'history'   && <HistoryTab last7={last7} pct={pct} data={{ ...data, meds: profileMeds }} totalDoses={totalDoses} profileName={profileName} />}
+        {tab === 'prescriptions' && <PrescriptionsTab data={data} update={update} profileName={profileName} />}
       </div>
 
       {/* Bottom Nav – personal */}
