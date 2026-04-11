@@ -111,7 +111,7 @@ export default function App() {
 
       {/* Content */}
       <div style={{ padding: 16 }}>
-        {tab === 'today'     && <TodayTab data={{ ...data, meds: profileMeds }} isTaken={isTaken} toggleTaken={toggleTaken} pct={pct} takenDoses={takenDoses} totalDoses={totalDoses} stockAlerts={stockAlerts} profileName={profileName} />}
+        {tab === 'today'     && <TodayTab data={{ ...data, meds: profileMeds }} isTaken={isTaken} toggleTaken={toggleTaken} pct={pct} takenDoses={takenDoses} totalDoses={totalDoses} stockAlerts={stockAlerts} profileName={profileName} inventory={data.inventory} />}
         {tab === 'meds'      && <MedsTab data={{ ...data, meds: profileMeds }} update={update} activeProfile={data.activeProfile} setModal={setModal} setEditTarget={setEditTarget} profileName={profileName} />}
         {tab === 'inventory' && <InventoryTab data={data} update={update} setModal={setModal} setEditTarget={setEditTarget} />}
         {tab === 'history'   && <HistoryTab last7={last7} pct={pct} data={{ ...data, meds: profileMeds }} totalDoses={totalDoses} profileName={profileName} />}
