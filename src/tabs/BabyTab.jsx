@@ -17,9 +17,9 @@ const FOOD_TYPES = [
   { id: 'solid', label: 'מוצקים', icon: '🥣' },
 ]
 
-export default function BabyTab({ data, update, profileName, profile }) {
+export default function BabyTab({ data, update, profileName, profile, babyLog: babyLogProp }) {
   const today = todayKey()
-  const babyLog = (data.babyLog || []).filter(l => l.profileId === data.activeProfile && l.date === today)
+  const babyLog = (babyLogProp || data.babyLog || []).filter(l => l.profileId === data.activeProfile && l.date === today)
 
   const [feedModal, setFeedModal] = useState(false)
   const [feedForm, setFeedForm] = useState({ type: 'breast', amount: '', duration: '', time: timeNow(), notes: '' })
