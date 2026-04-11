@@ -5,6 +5,7 @@ import MedsTab from './tabs/MedsTab'
 import InventoryTab from './tabs/InventoryTab'
 import HistoryTab from './tabs/HistoryTab'
 import PrescriptionsTab from './tabs/PrescriptionsTab'
+import RecommendationsTab from './tabs/RecommendationsTab'
 import MedModal from './components/MedModal'
 import InventoryModal from './components/InventoryModal'
 import ProfilesBar, { FamilyPanel } from './components/ProfilesBar'
@@ -36,12 +37,13 @@ function getTabLabel(id, name, ageCategory) {
     case 'inventory':     return `ארון התרופות`
     case 'prescriptions': return `המרשמים`
     case 'history':       return `איך עובר עליך?`
+    case 'recommendations': return `המלצות`
     default: return id
   }
 }
 
-const TAB_ICONS = { today: '🌸', meds: '💊', inventory: '🏠', prescriptions: '📋', history: '📊' }
-const TAB_IDS = ['today', 'meds', 'inventory', 'prescriptions', 'history']
+const TAB_ICONS = { today: '🌸', meds: '💊', inventory: '🏠', prescriptions: '📋', history: '📊', recommendations: '💡' }
+const TAB_IDS = ['today', 'meds', 'inventory', 'prescriptions', 'history', 'recommendations']
 
 export default function App() {
   const [data, setData] = useState(loadData)
@@ -154,6 +156,7 @@ export default function App() {
         {tab === 'inventory'     && <InventoryTab data={data} update={update} setModal={setModal} setEditTarget={setEditTarget} />}
         {tab === 'prescriptions' && <PrescriptionsTab data={data} update={update} profileName={profileName} />}
         {tab === 'history'       && <HistoryTab last7={last7} pct={pct} data={{ ...data, meds: profileMeds }} totalDoses={totalDoses} profileName={profileName} />}
+        {tab === 'recommendations' && <RecommendationsTab profile={activeProfile} profileName={profileName} ageCategory={ageCategory} />}
       </div>
 
       {/* ── BOTTOM NAV ── */}
