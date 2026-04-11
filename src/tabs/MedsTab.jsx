@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
 import { TIME_ICONS, TIME_COLORS, daysUntilExpiry, expiryColor, expiryLabel } from '../utils'
 
-export default function MedsTab({ data, update, setModal, setEditTarget }) {
+export default function MedsTab({ data, update, setModal, setEditTarget, profileName }) {
   const [scanning, setScanning] = useState(false)
   const videoRef = useRef(null)
   const streamRef = useRef(null)
@@ -37,6 +37,9 @@ export default function MedsTab({ data, update, setModal, setEditTarget }) {
 
   return (
     <div>
+      <p style={{ fontSize: 13, color: '#8b949e', marginBottom: 14, lineHeight: 1.5 }}>
+        אלו התרופות של <span style={{ color: '#58a6ff', fontWeight: 700 }}>{profileName}</span> – כל הפרטים במקום אחד 💊
+      </p>
       <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
         <button onClick={() => setModal('addMed')} style={btn('#388bfd')}>+ הוסף תרופה</button>
         <button onClick={scanning ? stopScan : startScan} style={btn(scanning ? '#ef4444' : '#21262d', scanning ? '#fff' : '#e6edf3', '1px solid #30363d')}>
