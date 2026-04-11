@@ -1,14 +1,8 @@
 import { useState } from 'react'
-import { uid, todayKey } from '../utils'
+import { uid } from '../utils'
 import DateNavigator, { useDateNav } from '../components/DateNavigator'
 
 function timeNow() { return new Date().toTimeString().slice(0, 5) }
-
-const VITAMIN_DEFAULTS = [
-  { name: 'ויטמין D', dose: "400 יח'", icon: '☀️' },
-  { name: 'ברזל', dose: '1 מ"ג/ק"ג', icon: '🩸' },
-  { name: 'פרוביוטיקה', dose: 'לפי הוראה', icon: '🦠' },
-]
 
 const FOOD_TYPES = [
   { id: 'breast',          label: 'חלב אם',       icon: '🤱' },
@@ -17,34 +11,48 @@ const FOOD_TYPES = [
   { id: 'formula_other',   label: 'פורמולה אחרת', icon: '🍼' },
   { id: 'solid',           label: 'מוצקים',       icon: '🥣' },
 ]
-
 const DIAPER_LABELS = { pee: '💧 פיפי', poop: '💩 קקי', both: '💧💩 שניהם' }
+const VITAMIN_DEFAULTS = [
+  { name: 'ויטמין D', dose: "400 יח'", icon: '☀️' },
+  { name: 'ברזל',     dose: '1 מ"ג/ק"ג', icon: '🩸' },
+  { name: 'פרוביוטיקה', dose: 'לפי הוראה', icon: '🦠' },
+]
 
 export default function BabyTab({ data, update, profileName, profile, babyLog: babyLogProp, activeProfileId }) {
   const { dateKey, dateLabel, isToday, goBack, goForward } = useDateNav()
 
-  // Always read from prop (reactive) with fallback to data
   const profileId = activeProfileId || data.activeProfile
   const allBabyLog = babyLogProp || data.babyLog || []
   const dayLog = allBabyLog.filter(l => l.profileId === profileId && l.date === dateKey)
 
-  const feeds   = dayLog.filter(l => l.type === 'feed').sort((a,b) => a.time > b.time ? -1 : 1)
-  const diapers = dayLog.filter(l => l.type === 'diaper').sort((a,b) => a.time > b.time ? -1 : 1)
+  const feeds   = dayLog.filter(l => l.type === 'feed').sort((a, b) => b.time > a.time ? 1 : -1)
+  const diapers = dayLog.filter(l => l.type === 'diaper').sort((a, b) => b.time > a.time ? 1 : -1)
   const vitamins = dayLog.filter(l => l.type === 'vitamin')
+
+  // Daily totals
+  const totalMl = feeds
+    .filter(f => f.type !== 'breast' && f.amount)
+    .reduce((s, f) => s + Number(f.amount || 0), 0)
+  const totalBreastMin = feeds
+    .filter(f => f.type === 'breast' && f.duration)
+    .reduce((s, f) => s + Number(f.duration || 0), 0)
+
+  const weightKg = profile?.weight ? parseFloat(profile.weight) : null
+  const dailyTarget = weightKg ? Math.round(weightKg * 150) : null
 
   const [feedModal, setFeedModal] = useState(false)
   const [feedForm, setFeedForm] = useState({ type: 'breast', amount: '', duration: '', time: timeNow(), notes: '' })
   const setFF = (k, v) => setFeedForm(f => ({ ...f, [k]: v }))
 
   const addFeed = () => {
-    const entry = { id: uid(), profileId: profileId, date: dateKey, type: 'feed', ...feedForm }
+    const entry = { id: uid(), profileId, date: dateKey, type: 'feed', ...feedForm }
     update(prev => ({ ...prev, babyLog: [...(prev.babyLog || []), entry] }))
     setFeedModal(false)
     setFeedForm({ type: 'breast', amount: '', duration: '', time: timeNow(), notes: '' })
   }
 
   const addDiaper = (kind) => {
-    const entry = { id: uid(), profileId: profileId, date: dateKey, type: 'diaper', kind, time: timeNow() }
+    const entry = { id: uid(), profileId, date: dateKey, type: 'diaper', kind, time: timeNow() }
     update(prev => ({ ...prev, babyLog: [...(prev.babyLog || []), entry] }))
   }
 
@@ -53,8 +61,7 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
     if (exists) {
       update(prev => ({ ...prev, babyLog: (prev.babyLog || []).filter(l => l.id !== exists.id) }))
     } else {
-      const entry = { id: uid(), profileId: data.activeProfile, date: dateKey, type: 'vitamin', name, time: timeNow() }
-      update(prev => ({ ...prev, babyLog: [...(prev.babyLog || []), entry] }))
+      update(prev => ({ ...prev, babyLog: [...(prev.babyLog || []), { id: uid(), profileId, date: dateKey, type: 'vitamin', name, time: timeNow() }] }))
     }
   }
 
@@ -66,7 +73,7 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
 
   return (
     <div>
-      {/* Baby header – compact */}
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
         <span style={{ fontSize: 32 }}>{profile?.avatar || '👶'}</span>
         <div>
@@ -85,7 +92,7 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
       {/* Quick stats */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 20 }}>
         {[
-          { label: 'האכלות', value: feeds.length,   icon: '🍼', color: '#f472b6' },
+          { label: 'האכלות', value: feeds.length, icon: '🍼', color: '#f472b6' },
           { label: 'חיתולים', value: diapers.length, icon: '🌸', color: '#fb923c' },
           { label: 'ויטמינים', value: vitamins.length, icon: '☀️', color: '#fbbf24' },
         ].map(s => (
@@ -96,41 +103,6 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
           </div>
         ))}
       </div>
-
-      {/* Daily food summary */}
-      {(totalMl > 0 || totalBreastMin > 0) && (
-        <div style={{ background: '#f472b615', border: '1px solid #f472b633', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          {totalMl > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 16 }}>🍼</span>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#f9a8d4' }}>{totalMl} מ"ל</div>
-                <div style={{ fontSize: 10, color: '#8b949e' }}>סה"כ היום</div>
-              </div>
-            </div>
-          )}
-          {totalBreastMin > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 16 }}>🤱</span>
-              <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: '#f9a8d4' }}>{totalBreastMin} דק'</div>
-                <div style={{ fontSize: 10, color: '#8b949e' }}>חלב אם היום</div>
-              </div>
-            </div>
-          )}
-          {profile?.weight && totalMl > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 16 }}>📊</span>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: Math.round(totalMl / (parseFloat(profile.weight) * 150) * 100) >= 80 ? '#22c55e' : '#f59e0b' }}>
-                  {Math.round(totalMl / (parseFloat(profile.weight) * 150) * 100)}%
-                </div>
-                <div style={{ fontSize: 10, color: '#8b949e' }}>מהיעד</div>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
 
       {/* ── FEEDING ── */}
       <Section title="🍼 האכלה" color="#f472b6">
@@ -143,34 +115,59 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
           ? <EmptyState text={isToday ? 'אין האכלות מתועדות' : 'אין האכלות ביום זה'} />
           : (
             <div style={{ maxHeight: feeds.length > 10 ? 340 : 'none', overflowY: feeds.length > 10 ? 'auto' : 'visible' }}>
-              {feeds.map(f => (
-                <div key={f.id} style={rowCard()}>
-                  <span style={{ fontSize: 20, flexShrink: 0 }}>{FOOD_TYPES.find(t => t.id === f.type)?.icon || '🍼'}</span>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontWeight: 700, fontSize: 13 }}>{FOOD_TYPES.find(t => t.id === f.type)?.label}</div>
-                    <div style={{ display: 'flex', gap: 6, marginTop: 2, flexWrap: 'wrap', alignItems: 'center' }}>
-                      {f.amount && (
-                        <span style={{ background: '#f472b622', color: '#f9a8d4', borderRadius: 5, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>
-                          {f.amount} מ"ל
-                        </span>
-                      )}
-                      {f.duration && (
-                        <span style={{ background: '#fb923c22', color: '#fdba74', borderRadius: 5, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>
-                          {f.duration} דק'
-                        </span>
-                      )}
-                      {profile?.weight && f.amount && (
-                        <span style={{ background: '#22c55e18', color: '#86efac', borderRadius: 5, padding: '1px 6px', fontSize: 10 }}>
-                          {Math.round((Number(f.amount) / (parseFloat(profile.weight) * 150)) * 100)}% יעד יומי
-                        </span>
-                      )}
-                      {f.notes && <span style={{ fontSize: 11, color: '#6b7280' }}>{f.notes}</span>}
+              {feeds.map(f => {
+                const mlPct = weightKg && f.amount && dailyTarget
+                  ? Math.round((Number(f.amount) / dailyTarget) * 100)
+                  : null
+                return (
+                  <div key={f.id} style={rowCard()}>
+                    <span style={{ fontSize: 20, flexShrink: 0 }}>{FOOD_TYPES.find(t => t.id === f.type)?.icon || '🍼'}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>{FOOD_TYPES.find(t => t.id === f.type)?.label}</div>
+                      <div style={{ display: 'flex', gap: 5, marginTop: 3, flexWrap: 'wrap', alignItems: 'center' }}>
+                        {f.amount && (
+                          <span style={{ background: '#f472b622', color: '#f9a8d4', borderRadius: 5, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>
+                            {f.amount} מ"ל
+                          </span>
+                        )}
+                        {f.duration && (
+                          <span style={{ background: '#fb923c22', color: '#fdba74', borderRadius: 5, padding: '1px 7px', fontSize: 11, fontWeight: 700 }}>
+                            {f.duration} דק'
+                          </span>
+                        )}
+                        {mlPct !== null && (
+                          <span style={{ background: mlPct >= 20 ? '#22c55e18' : '#6b728018', color: mlPct >= 20 ? '#86efac' : '#6b7280', borderRadius: 5, padding: '1px 7px', fontSize: 10 }}>
+                            {mlPct}% מהיעד
+                          </span>
+                        )}
+                        {f.notes && <span style={{ fontSize: 11, color: '#6b7280' }}>{f.notes}</span>}
+                      </div>
                     </div>
+                    <span style={{ fontSize: 12, color: '#58a6ff', fontWeight: 700, flexShrink: 0 }}>{f.time}</span>
+                    {isToday && <button onClick={() => deleteLog(f.id)} style={delBtn()}>✕</button>}
                   </div>
-                  <span style={{ fontSize: 12, color: '#58a6ff', fontWeight: 700, flexShrink: 0 }}>{f.time}</span>
-                  {isToday && <button onClick={() => deleteLog(f.id)} style={delBtn()}>✕</button>}
+                )
+              })}
+              {/* Daily total row */}
+              {(totalMl > 0 || totalBreastMin > 0) && (
+                <div style={{ background: '#f472b610', border: '1px dashed #f472b633', borderRadius: 8, padding: '8px 12px', marginTop: 6, display: 'flex', gap: 14, alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: '#8b949e' }}>סה"כ:</span>
+                  {totalMl > 0 && (
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#f9a8d4' }}>
+                      {totalMl} מ"ל
+                      {dailyTarget ? <span style={{ fontSize: 11, color: '#8b949e', fontWeight: 400 }}> / {dailyTarget} יעד</span> : ''}
+                    </span>
+                  )}
+                  {totalBreastMin > 0 && (
+                    <span style={{ fontSize: 13, fontWeight: 800, color: '#fdba74' }}>{totalBreastMin} דק' חלב אם</span>
+                  )}
+                  {dailyTarget && totalMl > 0 && (
+                    <span style={{ marginRight: 'auto', fontSize: 12, fontWeight: 700, color: totalMl >= dailyTarget * 0.8 ? '#22c55e' : '#f59e0b' }}>
+                      {Math.round((totalMl / dailyTarget) * 100)}%
+                    </span>
+                  )}
                 </div>
-              ))}
+              )}
             </div>
           )
         }
@@ -208,7 +205,10 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
 
       {/* ── VITAMINS ── */}
       <Section title="☀️ ויטמינים ותוספים" color="#fbbf24">
-        {[...VITAMIN_DEFAULTS, ...data.meds.filter(m => m.profileId === data.activeProfile).map(m => ({ name: m.name, dose: m.dose, icon: '💊' }))].map(v => {
+        {[
+          ...VITAMIN_DEFAULTS,
+          ...data.meds.filter(m => m.profileId === profileId).map(m => ({ name: m.name, dose: m.dose, icon: '💊' }))
+        ].map(v => {
           const taken = vitamins.some(x => x.name === v.name)
           return (
             <div key={v.name} style={{ ...rowCard(), background: taken ? '#fbbf2410' : '#161b22', border: `1px solid ${taken ? '#fbbf2440' : '#30363d'}` }}>
@@ -223,7 +223,7 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
                     background: taken ? '#238636' : '#388bfd', color: '#fff',
                     fontSize: 12, fontWeight: 700, fontFamily: 'Heebo', flexShrink: 0
                   }}>{taken ? '✓ ניתן' : 'ניתן'}</button>
-                : <span style={{ fontSize: 12, color: taken ? '#22c55e' : '#6b7280', fontWeight: 700 }}>{taken ? '✓' : '—'}</span>
+                : <span style={{ fontSize: 13, color: taken ? '#22c55e' : '#6b7280', fontWeight: 700 }}>{taken ? '✓' : '—'}</span>
               }
             </div>
           )
@@ -241,7 +241,6 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
               <button onClick={() => setFeedModal(false)} style={{ background: 'none', border: 'none', color: '#8b949e', fontSize: 20, cursor: 'pointer' }}>✕</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {/* Food type */}
               <div>
                 <label style={lbl}>סוג האכלה</label>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -255,7 +254,6 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
                   ))}
                 </div>
               </div>
-              {/* Time + amount/duration */}
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
                   <label style={lbl}>שעה</label>
@@ -268,12 +266,16 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
                   }
                 </div>
               </div>
-              {/* Notes */}
               <div>
                 <label style={lbl}>הערות</label>
                 <input value={feedForm.notes} onChange={e => setFF('notes', e.target.value)} placeholder="הערות..." style={inp()} />
               </div>
-              {/* Save */}
+              {/* Preview */}
+              {feedForm.amount && dailyTarget && (
+                <div style={{ background: '#f472b615', borderRadius: 8, padding: '8px 12px', fontSize: 12, color: '#f9a8d4' }}>
+                  מנה זו = {Math.round((Number(feedForm.amount) / dailyTarget) * 100)}% מהיעד היומי ({dailyTarget} מ"ל)
+                </div>
+              )}
               <button onClick={addFeed} style={{
                 background: '#f472b6', color: '#fff', border: 'none', borderRadius: 10,
                 padding: '13px', fontSize: 15, fontWeight: 700, fontFamily: 'Heebo', cursor: 'pointer', marginTop: 4
@@ -309,19 +311,16 @@ const rowCard = () => ({
   background: '#161b22', border: '1px solid #30363d',
   borderRadius: 10, padding: '10px 12px', marginBottom: 6
 })
-
 const actionBtn = (color) => ({
   background: color + '18', color, border: `1px solid ${color}44`,
   borderRadius: 8, padding: '8px 14px', fontSize: 13, fontWeight: 700,
   fontFamily: 'Heebo', cursor: 'pointer', marginBottom: 8,
   width: '100%', textAlign: 'center', display: 'block'
 })
-
 const delBtn = () => ({
   background: 'none', border: 'none', color: '#6b7280',
   cursor: 'pointer', fontSize: 14, flexShrink: 0, padding: '2px 4px'
 })
-
 const lbl = { display: 'block', fontSize: 11, color: '#8b949e', marginBottom: 4, fontFamily: 'Heebo' }
 const inp = () => ({
   width: '100%', background: '#21262d', border: '1px solid #30363d',
