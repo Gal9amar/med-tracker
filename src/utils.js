@@ -12,7 +12,11 @@ export const STORAGE_KEY = 'medtracker_v2'
 export function loadData() {
   try {
     const d = JSON.parse(localStorage.getItem(STORAGE_KEY))
-    if (d) return d
+    if (d) return {
+      babyLog: [],
+      prescriptions: [],
+      ...d
+    }
     const old = JSON.parse(localStorage.getItem('medtracker_v1'))
     if (old) {
       return {
@@ -20,7 +24,9 @@ export function loadData() {
         activeProfile: 'default',
         meds: (old.meds || []).map(m => ({ ...m, profileId: 'default' })),
         log: (old.log || []).map(l => ({ ...l, profileId: 'default' })),
-        inventory: old.inventory || []
+        inventory: old.inventory || [],
+        babyLog: [],
+        prescriptions: []
       }
     }
     return defaultData()
@@ -31,7 +37,7 @@ function defaultData() {
   return {
     profiles: [{ id: 'default', name: 'אני', avatar: '👤' }],
     activeProfile: 'default',
-    meds: [], log: [], inventory: []
+    meds: [], log: [], inventory: [], babyLog: [], prescriptions: []
   }
 }
 
@@ -99,3 +105,4 @@ export function daysUntilRenewal(dateStr, months) {
   const diff = renewal - new Date()
   return Math.ceil(diff / (1000 * 60 * 60 * 24))
 }
+
