@@ -83,7 +83,7 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
       <DateNavigator dateLabel={dateLabel} isToday={isToday} onBack={goBack} onForward={goForward} color="#f472b6" />
 
       {/* Quick stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: (totalMl > 0 || totalBreastMin > 0) ? 8 : 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 20 }}>
         {[
           { label: 'האכלות', value: feeds.length,   icon: '🍼', color: '#f472b6' },
           { label: 'חיתולים', value: diapers.length, icon: '🌸', color: '#fb923c' },
@@ -148,8 +148,23 @@ export default function BabyTab({ data, update, profileName, profile, babyLog: b
                   <span style={{ fontSize: 20, flexShrink: 0 }}>{FOOD_TYPES.find(t => t.id === f.type)?.icon || '🍼'}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontWeight: 700, fontSize: 13 }}>{FOOD_TYPES.find(t => t.id === f.type)?.label}</div>
-                    <div style={{ fontSize: 11, color: '#8b949e' }}>
-                      {f.amount ? `${f.amount} מ"ל` : ''}{f.duration ? ` · ${f.duration} דק'` : ''}{f.notes ? ` · ${f.notes}` : ''}
+                    <div style={{ display: 'flex', gap: 6, marginTop: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {f.amount && (
+                        <span style={{ background: '#f472b622', color: '#f9a8d4', borderRadius: 5, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>
+                          {f.amount} מ"ל
+                        </span>
+                      )}
+                      {f.duration && (
+                        <span style={{ background: '#fb923c22', color: '#fdba74', borderRadius: 5, padding: '1px 6px', fontSize: 11, fontWeight: 700 }}>
+                          {f.duration} דק'
+                        </span>
+                      )}
+                      {profile?.weight && f.amount && (
+                        <span style={{ background: '#22c55e18', color: '#86efac', borderRadius: 5, padding: '1px 6px', fontSize: 10 }}>
+                          {Math.round((Number(f.amount) / (parseFloat(profile.weight) * 150)) * 100)}% יעד יומי
+                        </span>
+                      )}
+                      {f.notes && <span style={{ fontSize: 11, color: '#6b7280' }}>{f.notes}</span>}
                     </div>
                   </div>
                   <span style={{ fontSize: 12, color: '#58a6ff', fontWeight: 700, flexShrink: 0 }}>{f.time}</span>
