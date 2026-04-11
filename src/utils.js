@@ -66,21 +66,27 @@ export async function requestNotificationPermission() {
 
 export function scheduleDailyReminders(meds, profileName) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return
-  const timeMap = { 'בוקר': 8, 'צהריים': 13, 'ערב': 19, 'לילה': 22 }
+  const defaultHours = { 'בוקר': '08:00', 'צהריים': '13:00', 'ערב': '19:00', 'לילה': '22:00' }
   const now = new Date()
+
   meds.forEach(med => {
     med.times?.forEach(time => {
-      const hour = timeMap[time]
-      if (hour === undefined) return
+      // Use custom hour if set, else fallback to default
+      const hourStr = med.timeHours?.[time] || defaultHours[time]
+      if (!hourStr) return
+      const [h, m] = hourStr.split(':').map(Number)
       const target = new Date()
-      target.setHours(hour, 0, 0, 0)
-      if (target <= now) return
+      target.setHours(h, m, 0, 0)
+      if (target <= now) return // already passed today
+
+      const delay = target - now
       setTimeout(() => {
-        new Notification(`💊 תזכורת – ${profileName}`, {
-          body: `הגיע הזמן לקחת ${med.name}${med.dose ? ' ' + med.dose : ''} (${time})`,
-          icon: '/pill.svg'
+        new Notification(`💊 ${med.name} – ${profileName}`, {
+          body: `הגיע הזמן לקחת ${med.name}${med.dose ? ' ' + med.dose : ''}${med.instructions ? ' · ' + med.instructions : ''}`,
+          icon: '/pill.svg',
+          tag: `${med.id}-${time}` // prevent duplicate notifications
         })
-      }, target - now)
+      }, delay)
     })
   })
 }
