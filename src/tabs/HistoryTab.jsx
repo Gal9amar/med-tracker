@@ -1,14 +1,23 @@
-export default function HistoryTab({ last7, pct, data, totalDoses }) {
+export default function HistoryTab({ last7, pct, data, totalDoses, profileName }) {
   const maxPct = Math.max(...last7.map(d => d.pct), 1)
   const avg = last7.length ? Math.round(last7.reduce((s, d) => s + d.pct, 0) / last7.length) : 0
+
+  function getComplianceMsg(avg, name) {
+    if (avg >= 90) return { text: `${name}, אתה מטפל בעצמך ממש טוב 🌟 המשך כך!`, color: '#22c55e' }
+    if (avg >= 70) return { text: `${name}, הולך טוב – עוד קצת עקביות ונהיה מושלמים 💪`, color: '#58a6ff' }
+    if (avg > 0)   return { text: `${name}, אנחנו כאן בשבילך. בוא ננסה להיות יותר עקביים ❤️`, color: '#f59e0b' }
+    return { text: `${name}, בוא נתחיל לעקוב – זה חשוב לבריאות שלך`, color: '#8b949e' }
+  }
+
+  const msg = getComplianceMsg(avg, profileName)
 
   return (
     <div>
       <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 12, padding: 16, marginBottom: 16 }}>
-        {/* Stats row */}
+        {/* Stats */}
         <div style={{ display: 'flex', justifyContent: 'space-around', marginBottom: 20 }}>
           {[
-            { value: `${pct}%`, label: 'היום', color: '#58a6ff' },
+            { value: `${pct}%`, label: 'היום שלך', color: '#58a6ff' },
             { value: `${avg}%`, label: 'ממוצע שבועי', color: '#22c55e' },
             { value: data.meds.length, label: 'תרופות פעילות', color: '#f59e0b' },
           ].map(s => (
@@ -43,11 +52,12 @@ export default function HistoryTab({ last7, pct, data, totalDoses }) {
 
       {/* Compliance message */}
       <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 12, padding: 16 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, marginBottom: 10 }}>📈 הערכת ציות</h3>
-        {avg >= 90 && <p style={{ fontSize: 13, color: '#22c55e', lineHeight: 1.6 }}>🌟 <strong>מעולה!</strong> אתה לוקח תרופות בצורה מאוד עקבית. המשך כך!</p>}
-        {avg >= 70 && avg < 90 && <p style={{ fontSize: 13, color: '#f59e0b', lineHeight: 1.6 }}>👍 <strong>טוב!</strong> יש מקום לשיפור קל בעקביות. נסה להגדיר תזכורות.</p>}
-        {avg < 70 && avg > 0 && <p style={{ fontSize: 13, color: '#ef4444', lineHeight: 1.6 }}>⚠️ <strong>כדאי לשפר</strong> – ציות נמוך עלול להשפיע על הטיפול. שוחח עם הרופא שלך.</p>}
-        {avg === 0 && <p style={{ fontSize: 13, color: '#8b949e' }}>עדיין אין נתונים מספיקים. התחל לסמן תרופות שנלקחו.</p>}
+        <p style={{ fontSize: 14, color: msg.color, fontWeight: 600, lineHeight: 1.6 }}>{msg.text}</p>
+        {avg < 70 && avg > 0 && (
+          <p style={{ fontSize: 12, color: '#8b949e', marginTop: 8, lineHeight: 1.6 }}>
+            💡 טיפ: הפעל תזכורות כדי לא לפספס מנות. זה עוזר מאוד!
+          </p>
+        )}
       </div>
     </div>
   )
