@@ -102,50 +102,32 @@ export default function App() {
     <div style={{ minHeight: '100vh', background: '#0d1117', paddingBottom: 80 }}>
 
       {/* ── HEADER ── */}
-      <div style={{ background: 'linear-gradient(135deg,#161b22 0%,#1c2128 100%)', borderBottom: '1px solid #30363d', padding: '12px 16px 10px' }}>
-
-        {/* Top row: greeting + actions */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 22 }}>{activeProfile?.avatar || '👤'}</span>
-              <div>
-                <h1 style={{ fontSize: 18, fontWeight: 800, color: '#e6edf3', letterSpacing: -0.5, lineHeight: 1.2 }}>
-                  {getGreeting(profileName, ageCategory)}
-                </h1>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                  <span style={{ fontSize: 10, background: ageCat.color + '22', color: ageCat.color, borderRadius: 6, padding: '1px 6px', fontWeight: 700 }}>
-                    {ageCat.icon} {ageCat.label}
-                  </span>
-                  <span style={{ fontSize: 11, color: '#6b7280' }}>
-                    {new Date().toLocaleDateString('he-IL', { day: 'numeric', month: 'long' })}
-                  </span>
-                </div>
+      <div style={{ background: '#161b22', borderBottom: '1px solid #30363d', padding: '10px 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
+            <span style={{ fontSize: 24, flexShrink: 0 }}>{activeProfile?.avatar || '👤'}</span>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#e6edf3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {getGreeting(profileName, ageCategory)}
               </div>
+              <span style={{ fontSize: 10, background: ageCat.color + '22', color: ageCat.color, borderRadius: 5, padding: '1px 6px', fontWeight: 700 }}>
+                {ageCat.icon} {ageCat.label}
+              </span>
             </div>
           </div>
-
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
-            {/* Alerts */}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0, marginRight: 8 }}>
             {alertCount > 0 && (
-              <div style={{ background: '#f59e0b22', border: '1px solid #f59e0b55', borderRadius: 8, padding: '5px 8px', fontSize: 11, color: '#f59e0b', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 3 }}>
+              <div style={{ background: '#f59e0b22', border: '1px solid #f59e0b44', borderRadius: 8, padding: '5px 7px', fontSize: 12, color: '#f59e0b', fontWeight: 700 }}>
                 ⚠️ {alertCount}
-                <span style={{ fontSize: 9, color: '#d97706', display: 'block', lineHeight: 1 }}>התראות</span>
               </div>
             )}
-            {/* Notifications */}
             <NotificationsButton meds={profileMeds} profileName={profileName} />
-            {/* Family */}
             <button onClick={() => setShowFamily(true)} style={{
-              display: 'flex', alignItems: 'center', gap: 5, padding: '6px 10px',
+              display: 'flex', alignItems: 'center', gap: 4, padding: '5px 9px',
               borderRadius: 8, border: '1px solid #30363d', background: '#21262d', cursor: 'pointer'
             }}>
-              <span style={{ fontSize: 16 }}>👨‍👩‍👧</span>
-              <span style={{ fontSize: 11, color: '#c9d1d9', fontFamily: 'Heebo', fontWeight: 600 }}>משפחה</span>
-              <span style={{ background: ageCat.color, color: '#fff', borderRadius: 10, fontSize: 9, fontWeight: 700, padding: '1px 5px' }}>
-                {data.profiles.length}
-              </span>
+              <span style={{ fontSize: 15 }}>👨‍👩‍👧</span>
+              <span style={{ fontSize: 12, color: '#c9d1d9', fontFamily: 'Heebo', fontWeight: 700 }}>{data.profiles.length}</span>
             </button>
           </div>
         </div>
