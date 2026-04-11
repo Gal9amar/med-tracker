@@ -100,12 +100,12 @@ export default function ProfilesBar({ data, update }) {
 
         {/* Add profile */}
         <button onClick={openAdd} style={{
-          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          padding: '6px 12px', borderRadius: 10, border: '1px dashed #30363d',
-          background: 'none', cursor: 'pointer', flexShrink: 0, gap: 3
+          display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6,
+          padding: '8px 14px', borderRadius: 20, border: '1px dashed #30363d',
+          background: 'none', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap'
         }}>
-          <span style={{ fontSize: 22 }}>➕</span>
-          <span style={{ fontSize: 11, color: '#8b949e', fontFamily: 'Heebo' }}>הוסף</span>
+          <span style={{ fontSize: 18 }}>➕</span>
+          <span style={{ fontSize: 13, color: '#8b949e', fontFamily: 'Heebo', fontWeight: 600 }}>הוסף</span>
         </button>
       </div>
 
