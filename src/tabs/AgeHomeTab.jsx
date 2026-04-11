@@ -19,14 +19,14 @@ function AgeTips({ ageCategory, name }) {
   )
 }
 
-export default function AgeHomeTab({ data, update, profile, profileName, isTaken, toggleTaken, pct, takenDoses, totalDoses, stockAlerts, inventory }) {
+export default function AgeHomeTab({ data, update, profile, profileName, isTaken, toggleTaken, pct, takenDoses, totalDoses, stockAlerts, inventory, babyLog }) {
   const ageCategory = profile?.ageCategory || 'adult'
 
   // Baby gets completely different UI
   if (ageCategory === 'baby' || ageCategory === 'toddler') {
     return (
       <>
-        <BabyTab data={data} update={update} profileName={profileName} profile={profile} />
+        <BabyTab data={data} update={update} profileName={profileName} profile={profile} babyLog={babyLog} />
         {/* Still show meds if any */}
         {data.meds.length > 0 && (
           <TodayTab
