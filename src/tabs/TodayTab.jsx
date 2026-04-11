@@ -54,12 +54,12 @@ export default function TodayTab({ data, isTaken, toggleTaken, pct, takenDoses, 
                   {med.instructions && <div style={{ fontSize: 11, color: '#f59e0b', marginTop: 2 }}>📋 {med.instructions}</div>}
                 </div>
                 <button onClick={() => toggleTaken(med.id, time)} style={{
-                  width: 38, height: 38, borderRadius: '50%', border: 'none', cursor: 'pointer',
-                  background: taken ? '#238636' : '#21262d', fontSize: 18,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  transition: 'all 0.2s', flexShrink: 0
+                  borderRadius: 8, border: 'none', cursor: 'pointer', padding: '7px 12px',
+                  background: taken ? '#238636' : '#388bfd',
+                  color: '#fff', fontSize: 13, fontWeight: 700, fontFamily: 'Heebo',
+                  transition: 'all 0.2s', flexShrink: 0, whiteSpace: 'nowrap'
                 }}>
-                  {taken ? '✅' : '⭕'}
+                  {taken ? '✓ נלקח' : 'לקחתי'}
                 </button>
               </div>
             )
