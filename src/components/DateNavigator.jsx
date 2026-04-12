@@ -33,11 +33,17 @@ export default function DateNavigator({ dateLabel, isToday, onBack, onForward, c
   return (
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      direction: 'ltr',
       background: '#161b22', border: '1px solid #30363d', borderRadius: 12,
       padding: '10px 14px', marginBottom: 16
     }}>
-      <button onClick={onBack} style={navBtn()}>
-        ◀
+      {/* שמאל = קדימה (היום) */}
+      <button onClick={onForward} disabled={isToday} style={{
+        ...navBtn(),
+        opacity: isToday ? 0.3 : 1,
+        cursor: isToday ? 'default' : 'pointer'
+      }}>
+        ‹
       </button>
 
       <div style={{ textAlign: 'center' }}>
@@ -51,12 +57,9 @@ export default function DateNavigator({ dateLabel, isToday, onBack, onForward, c
         )}
       </div>
 
-      <button onClick={onForward} disabled={isToday} style={{
-        ...navBtn(),
-        opacity: isToday ? 0.3 : 1,
-        cursor: isToday ? 'default' : 'pointer'
-      }}>
-        ▶
+      {/* ימין = אתמול */}
+      <button onClick={onBack} style={navBtn()}>
+        ›
       </button>
     </div>
   )
@@ -64,6 +67,7 @@ export default function DateNavigator({ dateLabel, isToday, onBack, onForward, c
 
 const navBtn = () => ({
   background: '#21262d', border: '1px solid #30363d', borderRadius: 8,
-  width: 36, height: 36, cursor: 'pointer', fontSize: 13,
-  color: '#8b949e', display: 'flex', alignItems: 'center', justifyContent: 'center'
+  width: 36, height: 36, cursor: 'pointer', fontSize: 22, fontWeight: 300,
+  color: '#8b949e', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  lineHeight: 1
 })

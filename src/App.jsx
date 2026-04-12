@@ -1,239 +1,389 @@
-import { useState } from 'react'
-import { loadData, saveData, uid, todayKey, daysUntilExpiry, daysUntilRenewal } from './utils'
-import AgeHomeTab from './tabs/AgeHomeTab'
-import MedsTab from './tabs/MedsTab'
-import InventoryTab from './tabs/InventoryTab'
-import HistoryTab from './tabs/HistoryTab'
-import PrescriptionsTab from './tabs/PrescriptionsTab'
-import RecommendationsTab from './tabs/RecommendationsTab'
-import MedModal from './components/MedModal'
-import InventoryModal from './components/InventoryModal'
-import ProfilesBar, { FamilyPanel } from './components/ProfilesBar'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { supabase } from './supabase'
+import * as db from './db'
+import { ageLabel, genderColor, genderColorLight } from './utils'
+import { generateVaccinations } from './data/vaccineSchedule'
+
+import AuthScreen from './components/AuthScreen'
+import FamilySetup from './components/FamilySetup'
+import BabySwitcher from './components/BabySwitcher'
+import HamburgerMenu from './components/HamburgerMenu'
 import NotificationsButton from './components/NotificationsButton'
-import { AGE_CATEGORIES, getCategoryFromBirthDate } from './ageProfiles'
 
-function getGreeting(name, ageCategory) {
-  const h = new Date().getHours()
-  if (ageCategory === 'baby' || ageCategory === 'toddler') {
-    if (h < 6)  return `לילה טוב, ${name} 🌙`
-    if (h < 12) return `בוקר טוב, ${name} 👶`
-    if (h < 17) return `צהריים טובים, ${name} 🍼`
-    return `ערב טוב, ${name} 🌙`
-  }
-  if (h < 6)  return `לילה טוב, ${name} 🌙`
-  if (h < 12) return `בוקר טוב, ${name} ☀️`
-  if (h < 17) return `צהריים טובים, ${name} 🌤`
-  if (h < 21) return `ערב טוב, ${name} 🌆`
-  return `לילה טוב, ${name} 🌙`
+import DashboardTab from './tabs/DashboardTab'
+import FeedingTab from './tabs/FeedingTab'
+import DiapersTab from './tabs/DiapersTab'
+import HealthTab from './tabs/HealthTab'
+import VaccinationsTab from './tabs/VaccinationsTab'
+import GrowthTab from './tabs/GrowthTab'
+
+const TAB_IDS = ['home', 'feeding', 'diapers', 'health', 'growth']
+const TAB_META = {
+  home:    { label: 'בית',      icon: '🏠' },
+  feeding: { label: 'האכלה',    icon: '🍼' },
+  diapers: { label: 'חיתולים',  icon: '🌸' },
+  health:  { label: 'בריאות',   icon: '💊' },
+  growth:  { label: 'התפתחות',  icon: '📊' },
 }
-
-function getTabLabel(id, name, ageCategory) {
-  const h = new Date().getHours()
-  const t = h < 12 ? 'הבוקר' : h < 17 ? 'הצהריים' : h < 21 ? 'הערב' : 'הלילה'
-  const isBaby = ageCategory === 'baby' || ageCategory === 'toddler'
-  switch (id) {
-    case 'today':         return isBaby ? `מעקב ${name}` : `${t} שלך`
-    case 'meds':          return `הטיפול של ${name}`
-    case 'inventory':     return `ארון התרופות`
-    case 'prescriptions': return `המרשמים`
-    case 'history':       return `איך עובר עליך?`
-    case 'recommendations': return `המלצות`
-    default: return id
-  }
-}
-
-const TAB_ICONS = { today: '🌸', meds: '💊', inventory: '🏠', prescriptions: '📋', history: '📊', recommendations: '💡' }
-const TAB_IDS = ['today', 'meds', 'inventory', 'prescriptions', 'history', 'recommendations']
 
 export default function App() {
-  const [data, setData] = useState(loadData)
-  const [tab, setTab] = useState('today')
-  const [modal, setModal] = useState(null)
-  const [editTarget, setEditTarget] = useState(null)
-  const [showFamily, setShowFamily] = useState(false)
-  const [showAddProfile, setShowAddProfile] = useState(false)
-  const [editProfileTarget, setEditProfileTarget] = useState(null)
+  const [user, setUser] = useState(null)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [family, setFamily] = useState(null)        // { id, name }
+  const [familyLoading, setFamilyLoading] = useState(false)
+  const [babies, setBabies] = useState([])
+  const [activeBabyId, setActiveBabyId] = useState(null)
+  const [data, setData] = useState({               // per-baby cached data
+    babyLog: [], meds: [], medLog: [], prescriptions: [],
+    inventory: [], vaccinations: [], growthLog: [], milestones: []
+  })
+  const [dataLoading, setDataLoading] = useState(false)
+  const [tab, setTab] = useState('home')
+  const [showSwitcher, setShowSwitcher] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
+  const [notifPrefs, setNotifPrefs] = useState({
+    feeding: true, meds: true, vaccines: true, temp: true, fever_med: true
+  })
 
-  const update = fn => setData(prev => { const next = fn(prev); saveData(next); return next })
-
-  const activeProfile = data.profiles?.find(p => p.id === data.activeProfile) || data.profiles?.[0]
-  const profileName = activeProfile?.name || 'אורח'
-  const ageCategory = getCategoryFromBirthDate(activeProfile?.birthDate) || activeProfile?.ageCategory || 'adult'
-  const ageCat = AGE_CATEGORIES.find(c => c.id === ageCategory) || AGE_CATEGORIES[4]
-
-  const profileMeds = data.meds.filter(m => m.profileId === data.activeProfile)
-  const profileLog = data.log.filter(l => l.profileId === data.activeProfile)
-  const today = todayKey()
-  const todayLog = profileLog.filter(l => l.date === today)
-
-  const isTaken = (medId, time) => todayLog.some(l => l.medId === medId && l.time === time)
-  const toggleTaken = (medId, time) => {
-    update(prev => {
-      const exists = prev.log.find(l => l.profileId === data.activeProfile && l.date === today && l.medId === medId && l.time === time)
-      return {
-        ...prev,
-        log: exists
-          ? prev.log.filter(l => !(l.profileId === data.activeProfile && l.date === today && l.medId === medId && l.time === time))
-          : [...prev.log, { date: today, medId, time, profileId: data.activeProfile, takenAt: new Date().toTimeString().slice(0, 5) }]
-      }
+  // ── Auth listener ────────────────────────────────────────────────────────
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null)
+      setAuthLoading(false)
     })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+    return () => subscription.unsubscribe()
+  }, [])
+
+  // ── Load notification prefs when user changes ────────────────────────────
+  const notifPrefsFetched = useRef(false)
+  useEffect(() => {
+    if (!user || notifPrefsFetched.current) return
+    notifPrefsFetched.current = true
+    db.getUserSetting(user.id, 'notif_prefs').then(({ data: saved }) => {
+      if (saved && typeof saved === 'object') setNotifPrefs(saved)
+    })
+  }, [user])
+
+  const handleSaveNotifPrefs = async (prefs) => {
+    setNotifPrefs(prefs)
+    await db.setUserSetting(user.id, 'notif_prefs', prefs)
   }
 
-  const totalDoses = profileMeds.reduce((s, m) => s + (m.times?.length || 0), 0)
-  const takenDoses = todayLog.length
-  const pct = totalDoses ? Math.round((takenDoses / totalDoses) * 100) : 0
+  // ── Load family when user changes ────────────────────────────────────────
+  useEffect(() => {
+    if (!user) { setFamily(null); setBabies([]); return }
+    loadFamily()
+  }, [user])
 
-  const last7 = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(); d.setDate(d.getDate() - (6 - i))
-    const key = d.toISOString().slice(0, 10)
-    const dayLog = profileLog.filter(l => l.date === key)
-    const p = totalDoses ? Math.round((dayLog.length / totalDoses) * 100) : 0
-    return { key, label: d.toLocaleDateString('he-IL', { weekday: 'short' }), pct: Math.min(p, 100) }
-  })
+  const loadFamily = async () => {
+    setFamilyLoading(true)
+    const { data: fm } = await db.getUserFamily(user.id)
+    if (fm?.families) {
+      setFamily(fm.families)
+      await loadBabies(fm.families.id)
+    }
+    setFamilyLoading(false)
+  }
 
-  const stockAlerts = profileMeds.filter(m => m.stockCount && m.stockAlert && Number(m.stockCount) <= Number(m.stockAlert))
-  const expiredOrSoon = [...profileMeds, ...data.inventory].filter(m => { const d = daysUntilExpiry(m.expiry); return d !== null && d <= 30 })
-  const prescriptionAlerts = (data.prescriptions || []).filter(p => {
-    if (p.profileId !== data.activeProfile) return false
-    const d = daysUntilRenewal(p.date, p.months)
-    return d !== null && d <= 14
-  })
-  const alertCount = stockAlerts.length + expiredOrSoon.length + prescriptionAlerts.length
+  const loadBabies = async (familyId) => {
+    const { data: bList } = await db.getBabies(familyId)
+    if (bList) {
+      setBabies(bList)
+      const saved = localStorage.getItem('babycare_active')
+      const active = bList.find(b => b.id === saved) || bList[0]
+      if (active) setActiveBabyId(active.id)
+    }
+  }
+
+  // ── Load baby data when active baby or family changes ────────────────────
+  useEffect(() => {
+    if (!family || !activeBabyId) return
+    loadBabyData()
+  }, [family, activeBabyId])
+
+  const loadBabyData = useCallback(async () => {
+    if (!family || !activeBabyId) return
+    setDataLoading(true)
+    const fid = family.id
+    const bid = activeBabyId
+
+    const [log, meds, medLog, rx, inv, vax, growth, miles] = await Promise.all([
+      db.getBabyLog(fid, bid),
+      db.getMeds(fid, bid),
+      db.getMedLog(fid, bid),
+      db.getPrescriptions(fid, bid),
+      db.getInventory(fid),
+      db.getVaccinations(fid, bid),
+      db.getGrowthLog(fid, bid),
+      db.getMilestones(fid, bid),
+    ])
+
+    setData({
+      babyLog:       log.data       || [],
+      meds:          meds.data      || [],
+      medLog:        medLog.data    || [],
+      prescriptions: rx.data        || [],
+      inventory:     inv.data       || [],
+      vaccinations:  vax.data       || [],
+      growthLog:     growth.data    || [],
+      milestones:    miles.data     || [],
+    })
+    setDataLoading(false)
+  }, [family, activeBabyId])
+
+  // ── Realtime subscription ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!family) return
+    const channel = supabase
+      .channel(`family-${family.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'baby_log', filter: `family_id=eq.${family.id}` }, () => loadBabyData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'meds', filter: `family_id=eq.${family.id}` }, () => loadBabyData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'med_log', filter: `family_id=eq.${family.id}` }, () => loadBabyData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vaccinations', filter: `family_id=eq.${family.id}` }, () => loadBabyData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'babies', filter: `family_id=eq.${family.id}` }, () => loadBabies(family.id))
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [family, loadBabyData])
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  const activeBaby = babies.find(b => b.id === activeBabyId) || null
+  const babyName   = activeBaby?.name || 'התינוק'
+
+  const switchBaby = (id) => {
+    setActiveBabyId(id)
+    localStorage.setItem('babycare_active', id)
+  }
+
+  const handleFamilyCreated = async (newFamily) => {
+    setFamily(newFamily)
+    await loadBabies(newFamily.id)
+  }
+
+  const handleBabyAdded = async (baby) => {
+    // Auto-generate vaccinations
+    if (baby.birth_date) {
+      const vaxList = generateVaccinations(baby.id, baby.birth_date)
+      const mapped = vaxList.map(v => ({
+        vaccine_id: v.vaccineId,
+        name: v.name,
+        vaccine_group: v.group,
+        age_label: v.ageLabel,
+        scheduled_date: v.scheduledDate,
+        status: v.status,
+      }))
+      await db.addVaccinations(family.id, baby.id, mapped)
+    }
+    await loadBabies(family.id)
+    switchBaby(baby.id)
+  }
+
+  const handleSignOut = async () => {
+    await db.signOut()
+    setUser(null)
+    setFamily(null)
+    setBabies([])
+    setData({ babyLog: [], meds: [], medLog: [], prescriptions: [], inventory: [], vaccinations: [], growthLog: [], milestones: [] })
+  }
+
+  // ── Theme color based on baby gender ────────────────────────────────────
+  const themeColor      = genderColor(activeBaby?.gender)
+  const themeColorLight = genderColorLight(activeBaby?.gender)
+
+  // ── Common props for tabs ────────────────────────────────────────────────
+  const commonProps = {
+    data,
+    reload: loadBabyData,
+    family,
+    activeBaby,
+    babyName,
+    user,
+    themeColor,
+  }
+
+  // ── Render states ────────────────────────────────────────────────────────
+  if (authLoading) return <Splash />
+
+  if (!user) return <AuthScreen onAuth={(u) => setUser(u)} />
+
+  if (familyLoading) return <Splash text="טוען נתוני משפחה..." />
+
+  if (!family) return (
+    <FamilySetup
+      user={user}
+      onFamilyCreated={handleFamilyCreated}
+      onSignOut={handleSignOut}
+    />
+  )
+
+  if (!activeBaby) return (
+    <div style={{ minHeight: '100vh', background: '#0d1117', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'Heebo', direction: 'rtl', padding: 24 }}>
+      <div style={{ fontSize: 64, marginBottom: 16 }}>👶</div>
+      <div style={{ fontSize: 20, fontWeight: 800, color: '#f9a8d4', marginBottom: 8 }}>ברוכים הבאים!</div>
+      <div style={{ fontSize: 14, color: '#8b949e', marginBottom: 32, textAlign: 'center' }}>הוסף את התינוק הראשון שלך</div>
+      <button onClick={() => setShowSwitcher(true)} style={{
+        background: '#a78bfa', color: '#fff', border: 'none', borderRadius: 14,
+        padding: '14px 32px', fontSize: 16, fontWeight: 800, cursor: 'pointer', fontFamily: 'Heebo'
+      }}>+ הוסף תינוק</button>
+      {showSwitcher && (
+        <BabySwitcher
+          babies={babies} activeBabyId={activeBabyId}
+          family={family} user={user}
+          onSwitch={switchBaby}
+          onBabyAdded={handleBabyAdded}
+          onClose={() => setShowSwitcher(false)}
+          themeColor='#a78bfa'
+          forceAdd
+        />
+      )}
+    </div>
+  )
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0d1117', paddingBottom: 80 }}>
+    <div style={{ minHeight: '100vh', background: '#0d1117', paddingBottom: 72, fontFamily: 'Heebo', direction: 'rtl' }}>
 
       {/* ── HEADER ── */}
-      <div style={{ background: '#161b22', borderBottom: '1px solid #30363d', padding: '10px 16px' }}>
+      <div style={{ background: '#161b22', borderBottom: '1px solid #30363d', padding: '10px 16px', position: 'sticky', top: 0, zIndex: 50 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1 }}>
-            <span style={{ fontSize: 24, flexShrink: 0 }}>{activeProfile?.avatar || '👤'}</span>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#e6edf3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {getGreeting(profileName, ageCategory)}
-              </div>
-              <span style={{ fontSize: 10, background: ageCat.color + '22', color: ageCat.color, borderRadius: 5, padding: '1px 6px', fontWeight: 700 }}>
-                {ageCat.icon} {ageCat.label}
-              </span>
+          <button onClick={() => setShowSwitcher(true)} style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            background: 'none', border: 'none', cursor: 'pointer', padding: 0
+          }}>
+            <span style={{ fontSize: 36 }}>{activeBaby.avatar || '👶'}</span>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: themeColorLight }}>{babyName}</div>
+              <div style={{ fontSize: 11, color: '#8b949e' }}>{ageLabel(activeBaby.birth_date)}</div>
             </div>
-          </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0, marginRight: 8 }}>
-            {alertCount > 0 && (
-              <div style={{ background: '#f59e0b22', border: '1px solid #f59e0b44', borderRadius: 8, padding: '5px 7px', fontSize: 12, color: '#f59e0b', fontWeight: 700 }}>
-                ⚠️ {alertCount}
-              </div>
-            )}
-            <NotificationsButton meds={profileMeds} profileName={profileName} />
-            <button onClick={() => setShowFamily(true)} style={{
-              display: 'flex', alignItems: 'center', gap: 4, padding: '5px 9px',
-              borderRadius: 8, border: '1px solid #30363d', background: '#21262d', cursor: 'pointer'
-            }}>
-              <span style={{ fontSize: 15 }}>👨‍👩‍👧</span>
-              <span style={{ fontSize: 12, color: '#c9d1d9', fontFamily: 'Heebo', fontWeight: 700 }}>{data.profiles.length}</span>
-            </button>
+          </button>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <NotificationsButton
+              activeBaby={activeBaby}
+              babyLog={data.babyLog}
+              meds={data.meds}
+              vaccinations={data.vaccinations}
+              notifPrefs={notifPrefs}
+              onSavePrefs={handleSaveNotifPrefs}
+            />
+            <button onClick={() => setShowSwitcher(true)} title="הוסף / נהל תינוקות" style={{
+              background: '#21262d', border: '1px solid #30363d', borderRadius: 8,
+              width: 36, height: 36, cursor: 'pointer', fontSize: 20,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#8b949e'
+            }}>+</button>
+            <button onClick={() => setShowMenu(true)} style={{
+              background: '#21262d', border: '1px solid #30363d', borderRadius: 8,
+              width: 36, height: 36, cursor: 'pointer', fontSize: 18,
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>☰</button>
           </div>
         </div>
       </div>
 
+      {/* ── BABY CHIPS (below header, only when 2+ babies) ── */}
+      {babies.length > 1 && (
+        <div style={{
+          display: 'flex', gap: 8, overflowX: 'auto', padding: '10px 16px',
+          borderBottom: '1px solid #30363d', background: '#0d1117',
+          scrollbarWidth: 'none'
+        }}>
+          {babies.map(b => {
+            const isActive = b.id === activeBabyId
+            const color = genderColor(b.gender)
+            return (
+              <button
+                key={b.id}
+                onClick={() => switchBaby(b.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  background: isActive ? color + '22' : '#161b22',
+                  border: `1px solid ${isActive ? color : '#30363d'}`,
+                  borderRadius: 20, padding: '5px 12px 5px 8px',
+                  cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                  fontFamily: 'Heebo'
+                }}
+              >
+                <span style={{ fontSize: 16 }}>{b.avatar || '👶'}</span>
+                <span style={{ fontSize: 13, fontWeight: isActive ? 700 : 400, color: isActive ? color : '#8b949e' }}>
+                  {b.name}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      )}
+
       {/* ── CONTENT ── */}
       <div style={{ padding: 16 }}>
-        {tab === 'today' && (
-          <AgeHomeTab
-            data={{ ...data, meds: profileMeds }}
-            update={update}
-            profile={activeProfile}
-            profileName={profileName}
-            activeProfileId={data.activeProfile}
-            isTaken={isTaken}
-            toggleTaken={toggleTaken}
-            pct={pct} takenDoses={takenDoses} totalDoses={totalDoses}
-            stockAlerts={stockAlerts}
-            inventory={data.inventory}
-            babyLog={data.babyLog || []}
-          />
+        {dataLoading && (
+          <div style={{ textAlign: 'center', padding: 32, color: '#6b7280', fontSize: 13 }}>טוען נתונים...</div>
         )}
-        {tab === 'meds'          && <MedsTab data={{ ...data, meds: profileMeds }} update={update} activeProfile={data.activeProfile} setModal={setModal} setEditTarget={setEditTarget} profileName={profileName} />}
-        {tab === 'inventory'     && <InventoryTab data={data} update={update} setModal={setModal} setEditTarget={setEditTarget} />}
-        {tab === 'prescriptions' && <PrescriptionsTab data={data} update={update} profileName={profileName} />}
-        {tab === 'history'       && <HistoryTab last7={last7} pct={pct} data={{ ...data, meds: profileMeds }} totalDoses={totalDoses} profileName={profileName} />}
-        {tab === 'recommendations' && <RecommendationsTab profile={activeProfile} profileName={profileName} ageCategory={ageCategory} />}
+        {!dataLoading && (
+          <>
+            {tab === 'home'          && <DashboardTab     {...commonProps} onNavigate={setTab} />}
+            {tab === 'feeding'       && <FeedingTab        {...commonProps} />}
+            {tab === 'diapers'       && <DiapersTab        {...commonProps} />}
+            {tab === 'health'        && <HealthTab         {...commonProps} />}
+            {tab === 'vaccinations'  && <VaccinationsTab   {...commonProps} />}
+            {tab === 'growth'        && <GrowthTab         {...commonProps} />}
+          </>
+        )}
       </div>
 
       {/* ── BOTTOM NAV ── */}
-      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#161b22', borderTop: '1px solid #30363d', display: 'flex' }}>
+      <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#161b22', borderTop: '1px solid #30363d', display: 'flex', zIndex: 50 }}>
         {TAB_IDS.map(id => {
           const active = tab === id
+          const meta = TAB_META[id]
           return (
             <button key={id} onClick={() => setTab(id)} style={{
               flex: 1, background: 'none', border: 'none', cursor: 'pointer',
               padding: '8px 2px 10px', display: 'flex', flexDirection: 'column',
-              alignItems: 'center', gap: 2, transition: 'all 0.2s',
-              borderTop: active ? `2px solid ${ageCat.color}` : '2px solid transparent',
+              alignItems: 'center', gap: 2,
+              borderTop: active ? `2px solid ${themeColor}` : '2px solid transparent',
             }}>
-              <span style={{ fontSize: 19 }}>{TAB_ICONS[id]}</span>
+              <span style={{ fontSize: 16 }}>{meta.icon}</span>
               <span style={{
-                fontSize: 9, fontFamily: 'Heebo', fontWeight: active ? 700 : 400,
-                color: active ? ageCat.color : '#8b949e',
-                textAlign: 'center', lineHeight: 1.2,
-                maxWidth: 64, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-              }}>{getTabLabel(id, profileName, ageCategory)}</span>
+                fontSize: 8, fontFamily: 'Heebo', fontWeight: active ? 700 : 400,
+                color: active ? themeColor : '#8b949e',
+                textAlign: 'center', lineHeight: 1.2
+              }}>{meta.label}</span>
             </button>
           )
         })}
       </div>
 
-      {/* ── FAMILY PANEL ── */}
-      {showFamily && (
-        <FamilyPanel
-          data={data}
-          update={update}
-          onClose={() => setShowFamily(false)}
-          onOpenAddProfile={(p) => {
-            setEditProfileTarget(p)
-            setShowAddProfile(true)
-            setShowFamily(false)
-          }}
+      {/* ── BABY SWITCHER ── */}
+      {showSwitcher && (
+        <BabySwitcher
+          babies={babies} activeBabyId={activeBabyId}
+          family={family} user={user}
+          onSwitch={switchBaby}
+          onBabyAdded={handleBabyAdded}
+          onClose={() => setShowSwitcher(false)}
+          themeColor={themeColor}
         />
       )}
 
-      {/* ── ADD/EDIT PROFILE ── */}
-      {showAddProfile && (
-        <ProfilesBar
-          data={data}
-          update={update}
-          editTarget={editProfileTarget}
-          onClose={() => { setShowAddProfile(false); setEditProfileTarget(null) }}
-          forceOpen
+      {/* ── HAMBURGER MENU ── */}
+      {showMenu && (
+        <HamburgerMenu
+          user={user} family={family} babies={babies}
+          onClose={() => setShowMenu(false)}
+          onSignOut={handleSignOut}
+          onManageBabies={() => { setShowMenu(false); setShowSwitcher(true) }}
+          onOpenVaccinations={() => { setShowMenu(false); setTab('vaccinations') }}
         />
       )}
+    </div>
+  )
+}
 
-      {/* ── MED MODALS ── */}
-      {modal === 'addMed' && (
-        <MedModal onClose={() => setModal(null)} onSave={med => {
-          update(p => ({ ...p, meds: [...p.meds, { ...med, id: uid(), profileId: data.activeProfile }] }))
-          setModal(null)
-        }} />
-      )}
-      {modal === 'editMed' && editTarget && (
-        <MedModal initial={editTarget} onClose={() => { setModal(null); setEditTarget(null) }}
-          onSave={med => {
-            update(p => ({ ...p, meds: p.meds.map(m => m.id === editTarget.id ? { ...med, id: editTarget.id, profileId: editTarget.profileId } : m) }))
-            setModal(null); setEditTarget(null)
-          }} />
-      )}
-      {modal === 'addInventory' && (
-        <InventoryModal onClose={() => setModal(null)} onSave={item => {
-          update(p => ({ ...p, inventory: [...p.inventory, { ...item, id: uid() }] }))
-          setModal(null)
-        }} />
-      )}
-      {modal === 'editInventory' && editTarget && (
-        <InventoryModal initial={editTarget} onClose={() => { setModal(null); setEditTarget(null) }}
-          onSave={item => {
-            update(p => ({ ...p, inventory: p.inventory.map(i => i.id === editTarget.id ? { ...item, id: editTarget.id } : i) }))
-            setModal(null); setEditTarget(null)
-          }} />
-      )}
+function Splash({ text = 'BabyCare...' }) {
+  return (
+    <div style={{ minHeight: '100vh', background: '#0d1117', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', fontFamily: 'Heebo' }}>
+      <div style={{ fontSize: 56, marginBottom: 12 }}>👶</div>
+      <div style={{ fontSize: 14, color: '#6b7280' }}>{text}</div>
     </div>
   )
 }
