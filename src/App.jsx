@@ -43,6 +43,7 @@ export default function App() {
   const [growthView, setGrowthView] = useState('milestones')
   const [showSwitcher, setShowSwitcher] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
+  const [memberProfile, setMemberProfile] = useState(null) // { full_name, email }
   const [notifPrefs, setNotifPrefs] = useState({
     feeding: true, meds: true, vaccines: true, temp: true, fever_med: true
   })
@@ -79,6 +80,14 @@ export default function App() {
     setNotifPrefs(prefs)
     await db.setUserSetting(user.id, 'notif_prefs', prefs)
   }
+
+  // ── Load member profile when user changes ───────────────────────────────
+  useEffect(() => {
+    if (!user) { setMemberProfile(null); return }
+    db.getMember(user.id).then(({ data }) => {
+      if (data) setMemberProfile(data)
+    })
+  }, [user?.id])
 
   // ── Load family when user changes ────────────────────────────────────────
   useEffect(() => {
@@ -155,6 +164,17 @@ export default function App() {
       .subscribe()
     return () => supabase.removeChannel(channel)
   }, [family, loadBabyData])
+
+  // ── Realtime: members profile updates ───────────────────────────────────
+  useEffect(() => {
+    if (!user) return
+    const channel = supabase
+      .channel(`member-${user.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'members', filter: `id=eq.${user.id}` },
+        (payload) => setMemberProfile(payload.new))
+      .subscribe()
+    return () => supabase.removeChannel(channel)
+  }, [user?.id])
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   const activeBaby = babies.find(b => b.id === activeBabyId) || null
@@ -389,6 +409,8 @@ export default function App() {
       {showMenu && (
         <HamburgerMenu
           user={user} family={family} babies={babies}
+          memberProfile={memberProfile}
+          onProfileUpdated={() => db.getMember(user.id).then(({ data }) => { if (data) setMemberProfile(data) })}
           onClose={() => setShowMenu(false)}
           onSignOut={handleSignOut}
           onManageBabies={() => { setShowMenu(false); setShowSwitcher(true) }}

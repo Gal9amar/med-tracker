@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import * as db from '../db'
 
-export default function HamburgerMenu({ user, family, babies, onClose, onSignOut, onManageBabies, onOpenVaccinations, onDeleteAccount }) {
+export default function HamburgerMenu({ user, family, babies, memberProfile, onProfileUpdated, onClose, onSignOut, onManageBabies, onOpenVaccinations, onDeleteAccount }) {
   const [view, setView] = useState('main') // 'main' | 'invite' | 'delete-account' | 'edit-profile'
   const [inviteCode, setInviteCode] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
@@ -29,7 +29,7 @@ export default function HamburgerMenu({ user, family, babies, onClose, onSignOut
   const [editError, setEditError] = useState('')
   const [editSuccess, setEditSuccess] = useState(false)
 
-  const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0]
+  const displayName = memberProfile?.full_name || user?.user_metadata?.display_name || user?.email?.split('@')[0]
 
   useEffect(() => {
     if (!family?.id) return
@@ -244,6 +244,7 @@ export default function HamburgerMenu({ user, family, babies, onClose, onSignOut
                 setEditLoading(false)
                 if (error) { setEditError(error.message); return }
                 setEditSuccess(true)
+                onProfileUpdated?.()
                 // Refresh family members list
                 const { data } = await db.getFamilyMembers(family.id)
                 if (data) setFamilyMembers(data)
