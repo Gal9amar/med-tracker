@@ -1,6 +1,21 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import * as db from '../db'
+
+const RESEND_LS_KEY = 'babycare_resend_attempts'
+const RESEND_MAX = 3
+const RESEND_WINDOW_MS = 60 * 60 * 1000 // 1 hour
+const RESEND_COOLDOWN_MS = 60 * 1000    // 1 min between sends
+
+function getResendState() {
+  try {
+    return JSON.parse(localStorage.getItem(RESEND_LS_KEY) || '[]')
+  } catch { return [] }
+}
+
+function saveResendState(timestamps) {
+  localStorage.setItem(RESEND_LS_KEY, JSON.stringify(timestamps))
+}
 
 export default function AuthScreen({ onAuth }) {
   const [mode, setMode] = useState('login') // 'login' | 'register' | 'forgot'
@@ -10,6 +25,55 @@ export default function AuthScreen({ onAuth }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [info, setInfo] = useState('')
+  const [awaitingConfirm, setAwaitingConfirm] = useState(false) // show resend UI
+  const [resendSecondsLeft, setResendSecondsLeft] = useState(0) // cooldown timer
+  const [hourBlockSecondsLeft, setHourBlockSecondsLeft] = useState(0)
+  const [resendLoading, setResendLoading] = useState(false)
+  const timerRef = useRef(null)
+
+  useEffect(() => {
+    if (resendSecondsLeft <= 0 && hourBlockSecondsLeft <= 0) {
+      clearInterval(timerRef.current)
+      return
+    }
+    clearInterval(timerRef.current)
+    timerRef.current = setInterval(() => {
+      setResendSecondsLeft(s => Math.max(0, s - 1))
+      setHourBlockSecondsLeft(s => Math.max(0, s - 1))
+    }, 1000)
+    return () => clearInterval(timerRef.current)
+  }, [resendSecondsLeft > 0 || hourBlockSecondsLeft > 0])
+
+  const handleResendConfirmEmail = async () => {
+    const now = Date.now()
+    const attempts = getResendState().filter(t => now - t < RESEND_WINDOW_MS)
+
+    if (attempts.length >= RESEND_MAX) {
+      const unblockAt = attempts[0] + RESEND_WINDOW_MS
+      setHourBlockSecondsLeft(Math.ceil((unblockAt - now) / 1000))
+      return
+    }
+
+    if (attempts.length > 0) {
+      const lastAttempt = attempts[attempts.length - 1]
+      const cooldownLeft = Math.ceil((lastAttempt + RESEND_COOLDOWN_MS - now) / 1000)
+      if (cooldownLeft > 0) {
+        setResendSecondsLeft(cooldownLeft)
+        return
+      }
+    }
+
+    setResendLoading(true)
+    const { error: err } = await supabase.auth.resend({ type: 'signup', email: email.trim() })
+    setResendLoading(false)
+
+    if (err) { setError(err.message); return }
+
+    const updated = [...attempts, now]
+    saveResendState(updated)
+    setResendSecondsLeft(60)
+    setInfo('מייל אימות נשלח שוב — בדקו את תיבת הדואר 💌')
+  }
 
   const handleForgotPassword = async () => {
     setError('')
@@ -41,6 +105,7 @@ export default function AuthScreen({ onAuth }) {
       // Auto-confirm is off by default → tell user to check email
       if (data.user && !data.session) {
         setInfo('שלחנו אימייל אימות — בדקו את תיבת הדואר ולחצו על הקישור 💌')
+        setAwaitingConfirm(true)
         setLoading(false)
         return
       }
@@ -188,6 +253,39 @@ export default function AuthScreen({ onAuth }) {
           }}>
             שכחתם סיסמה?
           </button>
+        )}
+
+        {/* Resend confirmation email */}
+        {awaitingConfirm && mode === 'register' && (
+          <div style={{ marginTop: 16, borderTop: '1px solid #30363d', paddingTop: 14 }}>
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 8, textAlign: 'center' }}>
+              לא קיבלתם את המייל?
+            </div>
+            {hourBlockSecondsLeft > 0 ? (
+              <div style={{ fontSize: 12, color: '#ef4444', textAlign: 'center', lineHeight: 1.6 }}>
+                שלחנו 3 מיילים — ניתן לשלוח שוב בעוד{' '}
+                <b>{Math.floor(hourBlockSecondsLeft / 60)}:{String(hourBlockSecondsLeft % 60).padStart(2, '0')}</b>
+              </div>
+            ) : resendSecondsLeft > 0 ? (
+              <div style={{ fontSize: 12, color: '#f59e0b', textAlign: 'center' }}>
+                ניתן לשלוח שוב בעוד <b>{resendSecondsLeft}</b> שניות
+              </div>
+            ) : (
+              <button
+                onClick={handleResendConfirmEmail}
+                disabled={resendLoading}
+                style={{
+                  width: '100%', padding: '10px 0',
+                  background: '#21262d', border: '1px solid #30363d',
+                  borderRadius: 10, color: '#e6edf3',
+                  fontFamily: 'Heebo', fontSize: 13, fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                {resendLoading ? '...' : '📨 שלח מייל אימות שוב'}
+              </button>
+            )}
+          </div>
         )}
       </div>
 

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import * as db from '../db'
 
 export default function HamburgerMenu({ user, family, babies, onClose, onSignOut, onManageBabies, onOpenVaccinations, onDeleteAccount }) {
@@ -7,17 +7,54 @@ export default function HamburgerMenu({ user, family, babies, onClose, onSignOut
   const [inviteLoading, setInviteLoading] = useState(false)
   const [inviteError, setInviteError] = useState('')
   const [copied, setCopied] = useState(false)
+  // Rate limit state
+  const [rateLimitSecondsLeft, setRateLimitSecondsLeft] = useState(0) // cooldown between codes (60s)
+  const [hourBlockSecondsLeft, setHourBlockSecondsLeft] = useState(0) // full hour block after 3 codes
+  const timerRef = useRef(null)
+
+  // Tick down the active timer every second
+  useEffect(() => {
+    if (rateLimitSecondsLeft <= 0 && hourBlockSecondsLeft <= 0) return
+    timerRef.current = setInterval(() => {
+      setRateLimitSecondsLeft(s => Math.max(0, s - 1))
+      setHourBlockSecondsLeft(s => Math.max(0, s - 1))
+    }, 1000)
+    return () => clearInterval(timerRef.current)
+  }, [rateLimitSecondsLeft > 0 || hourBlockSecondsLeft > 0])
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [familyMembers, setFamilyMembers] = useState([])
 
   const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0]
+
+  useEffect(() => {
+    if (!family?.id) return
+    db.getFamilyMembers(family.id).then(({ data }) => {
+      if (data) setFamilyMembers(data)
+    })
+  }, [family?.id])
 
   const handleGenerateCode = async () => {
     setInviteLoading(true)
     setInviteError('')
+
+    // Check rate limit from DB
+    const { codesThisHour, oldestTimestamp } = await db.getInviteRateLimit(user.id)
+
+    if (codesThisHour >= 3) {
+      // Blocked for the rest of the hour from the first code
+      const unblockAt = new Date(oldestTimestamp).getTime() + 60 * 60 * 1000
+      const secsLeft = Math.ceil((unblockAt - Date.now()) / 1000)
+      setHourBlockSecondsLeft(Math.max(0, secsLeft))
+      setInviteLoading(false)
+      return
+    }
+
     const { data, error } = await db.createInviteCode(family.id, user.id)
     if (error) { setInviteError(error.message); setInviteLoading(false); return }
     setInviteCode(data.code)
+    // Start 60s cooldown between codes
+    setRateLimitSecondsLeft(60)
     setInviteLoading(false)
   }
 
@@ -63,10 +100,78 @@ export default function HamburgerMenu({ user, family, babies, onClose, onSignOut
           <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
 
             {/* Family info */}
-            <div style={{ background: '#0d1117', borderRadius: 12, padding: '12px 14px', marginBottom: 8 }}>
-              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 4 }}>יחידה משפחתית</div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#e6edf3' }}>👨‍👩‍👧 {family?.name}</div>
-              <div style={{ fontSize: 11, color: '#8b949e', marginTop: 2 }}>{babies.length} תינוק/ים</div>
+            <div style={{ background: '#0d1117', borderRadius: 14, padding: '14px 16px', marginBottom: 8 }}>
+              <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 10, fontWeight: 600, letterSpacing: 0.5 }}>
+                👨‍👩‍👧 יחידה משפחתית
+              </div>
+
+              {/* Parents */}
+              {familyMembers.length > 0 && (
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 6, fontWeight: 600 }}>הורים</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {familyMembers.map(m => {
+                      const name = m.members?.full_name || m.display_name || m.members?.email?.split('@')[0] || 'הורה'
+                      const isMe = m.member_id === user?.id
+                      const isAdmin = m.role === 'admin'
+                      return (
+                        <div key={m.member_id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <div style={{
+                            width: 30, height: 30, borderRadius: '50%',
+                            background: isMe ? '#a78bfa33' : '#30363d',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 14, flexShrink: 0
+                          }}>
+                            👤
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: isMe ? 700 : 400, color: isMe ? '#c4b5fd' : '#e6edf3', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {name}{isMe ? ' (אני)' : ''}
+                            </div>
+                            <div style={{ fontSize: 10, color: '#6b7280' }}>
+                              {isAdmin ? 'מנהל' : 'הורה'}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Divider */}
+              {babies.length > 0 && familyMembers.length > 0 && (
+                <div style={{ height: 1, background: '#21262d', margin: '8px 0' }} />
+              )}
+
+              {/* Babies */}
+              {babies.length > 0 && (
+                <div>
+                  <div style={{ fontSize: 10, color: '#6b7280', marginBottom: 6, fontWeight: 600 }}>ילדים</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {babies.map(b => (
+                      <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{
+                          width: 30, height: 30, borderRadius: '50%',
+                          background: '#30363d', overflow: 'hidden',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 16, flexShrink: 0
+                        }}>
+                          {b.photo_url
+                            ? <img src={b.photo_url} alt={b.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : (b.avatar || '👶')}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: 13, color: '#e6edf3', fontWeight: 600 }}>{b.name}</div>
+                          <div style={{ fontSize: 10, color: '#6b7280' }}>
+                            {b.birth_date ? new Date(b.birth_date).toLocaleDateString('he-IL') : ''}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <MenuItem icon="👶" label="ניהול תינוקות" onClick={onManageBabies} />
@@ -141,13 +246,23 @@ export default function HamburgerMenu({ user, family, babies, onClose, onSignOut
             {!inviteCode ? (
               <>
                 {inviteError && <div style={errStyle}>{inviteError}</div>}
-                <button onClick={handleGenerateCode} disabled={inviteLoading} style={{
-                  width: '100%', padding: '13px 0', background: '#a78bfa',
-                  color: '#fff', border: 'none', borderRadius: 12,
-                  fontFamily: 'Heebo', fontSize: 15, fontWeight: 700, cursor: 'pointer'
-                }}>
-                  {inviteLoading ? '...' : '🔗 צור קוד הזמנה'}
-                </button>
+                {hourBlockSecondsLeft > 0 ? (
+                  <div style={{ background: '#ef444418', border: '1px solid #ef444440', borderRadius: 12, padding: '14px 16px', fontSize: 13, color: '#ef4444', lineHeight: 1.7, textAlign: 'center' }}>
+                    הגעת ל-3 קודים בשעה האחרונה.<br />
+                    ניתן ליצור קוד חדש בעוד{' '}
+                    <b>{Math.floor(hourBlockSecondsLeft / 60)}:{String(hourBlockSecondsLeft % 60).padStart(2, '0')}</b>
+                  </div>
+                ) : (
+                  <button onClick={handleGenerateCode} disabled={inviteLoading || rateLimitSecondsLeft > 0} style={{
+                    width: '100%', padding: '13px 0',
+                    background: rateLimitSecondsLeft > 0 ? '#374151' : '#a78bfa',
+                    color: '#fff', border: 'none', borderRadius: 12,
+                    fontFamily: 'Heebo', fontSize: 15, fontWeight: 700,
+                    cursor: rateLimitSecondsLeft > 0 ? 'default' : 'pointer'
+                  }}>
+                    {inviteLoading ? '...' : rateLimitSecondsLeft > 0 ? `המתן ${rateLimitSecondsLeft} שניות` : '🔗 צור קוד הזמנה'}
+                  </button>
+                )}
               </>
             ) : (
               <div style={{ textAlign: 'center' }}>
@@ -175,9 +290,21 @@ export default function HamburgerMenu({ user, family, babies, onClose, onSignOut
                   {copied ? '✅ הקוד הועתק!' : '📋 העתק קוד'}
                 </button>
                 <br />
-                <button onClick={() => setInviteCode('')} style={{ marginTop: 12, background: 'none', border: 'none', color: '#6b7280', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo' }}>
-                  צור קוד חדש
-                </button>
+                {hourBlockSecondsLeft > 0 ? (
+                  <div style={{ marginTop: 12, fontSize: 12, color: '#ef4444', lineHeight: 1.6 }}>
+                    הגעת ל-3 קודים בשעה האחרונה.<br />
+                    ניתן ליצור קוד חדש בעוד{' '}
+                    <b>{Math.floor(hourBlockSecondsLeft / 60)}:{String(hourBlockSecondsLeft % 60).padStart(2, '0')}</b>
+                  </div>
+                ) : rateLimitSecondsLeft > 0 ? (
+                  <div style={{ marginTop: 12, fontSize: 12, color: '#f59e0b' }}>
+                    ניתן ליצור קוד חדש בעוד <b>{rateLimitSecondsLeft}</b> שניות
+                  </div>
+                ) : (
+                  <button onClick={() => setInviteCode('')} style={{ marginTop: 12, background: 'none', border: 'none', color: '#6b7280', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo' }}>
+                    צור קוד חדש
+                  </button>
+                )}
               </div>
             )}
           </div>

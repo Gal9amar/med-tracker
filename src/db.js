@@ -65,6 +65,14 @@ export async function createFamily(userId, displayName) {
   return { data: family }
 }
 
+export async function getFamilyMembers(familyId) {
+  return supabase
+    .from('family_members')
+    .select('member_id, role, display_name, joined_at, members(email, full_name)')
+    .eq('family_id', familyId)
+    .order('joined_at')
+}
+
 export async function getUserFamily(userId) {
   const { data, error } = await supabase
     .from('family_members')
@@ -75,6 +83,22 @@ export async function getUserFamily(userId) {
 }
 
 // ─── INVITE CODES ────────────────────────────────────────────────────────────
+
+// Returns { codesThisHour, oldestTimestamp } for rate-limit display
+export async function getInviteRateLimit(userId) {
+  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const { data, error } = await supabase
+    .from('invite_codes')
+    .select('created_at')
+    .eq('created_by', userId)
+    .gte('created_at', oneHourAgo)
+    .order('created_at', { ascending: true })
+  if (error) return { codesThisHour: 0, oldestTimestamp: null }
+  return {
+    codesThisHour: data.length,
+    oldestTimestamp: data[0]?.created_at ?? null,
+  }
+}
 
 export async function createInviteCode(familyId, userId) {
   const code = Math.random().toString(36).substring(2, 8).toUpperCase()
