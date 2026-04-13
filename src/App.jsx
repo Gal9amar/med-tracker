@@ -16,6 +16,7 @@ import DiapersTab from './tabs/DiapersTab'
 import HealthTab from './tabs/HealthTab'
 import VaccinationsTab from './tabs/VaccinationsTab'
 import GrowthTab from './tabs/GrowthTab'
+import InstallPwaPrompt from './components/InstallPwaPrompt'
 
 const TAB_IDS = ['home', 'feeding', 'diapers', 'health', 'growth']
 const TAB_META = {
@@ -260,6 +261,7 @@ export default function App() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#0d1117', paddingBottom: 72, fontFamily: 'Heebo', direction: 'rtl' }}>
+      <InstallPwaPrompt />
 
       {/* ── HEADER ── */}
       <div style={{ background: '#161b22', borderBottom: '1px solid #30363d', padding: '10px 16px', position: 'sticky', top: 0, zIndex: 50 }}>

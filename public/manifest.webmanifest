@@ -1,0 +1,21 @@
+{
+  "name": "BabyCare",
+  "short_name": "BabyCare",
+  "description": "BabyCare – מעקב טיפול בתינוקות, האכלות, חיסונים, גדילה ועוד",
+  "lang": "he",
+  "dir": "rtl",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "icons": [
+    {
+      "src": "/images/BabyCareLogo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+
