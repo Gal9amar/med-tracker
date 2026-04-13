@@ -21,8 +21,23 @@ export default function NotificationsButton({
   const [showPanel, setShowPanel] = useState(false)
   const [draft, setDraft]         = useState(null)
   const [saving, setSaving]       = useState(false)
+  const [enableError, setEnableError] = useState('')
 
   const isGranted = permission === 'granted'
+  const isSecure = typeof window !== 'undefined' ? window.isSecureContext !== false : true
+  const supported = 'Notification' in window
+
+  // Keep permission state in sync (user may change browser settings)
+  useEffect(() => {
+    if (!supported) return
+    const sync = () => setPermission(Notification.permission)
+    window.addEventListener('focus', sync)
+    document.addEventListener('visibilitychange', sync)
+    return () => {
+      window.removeEventListener('focus', sync)
+      document.removeEventListener('visibilitychange', sync)
+    }
+  }, [supported])
 
   // Re-schedule whenever data or prefs change
   useEffect(() => {
@@ -32,6 +47,8 @@ export default function NotificationsButton({
   }, [activeBaby, babyLog, meds, vaccinations, permission, notifPrefs])
 
   const openPanel = () => {
+    setEnableError('')
+    if (supported) setPermission(Notification.permission)
     setDraft({ ...notifPrefs })
     setShowPanel(true)
   }
@@ -50,14 +67,40 @@ export default function NotificationsButton({
   }
 
   const handleEnable = async () => {
+    setEnableError('')
+    if (!supported) {
+      setEnableError('הדפדפן לא תומך בהתראות')
+      return
+    }
+    if (!isSecure) {
+      setEnableError('כדי לבקש הרשאת התראות צריך HTTPS (או localhost)')
+      return
+    }
+
     const granted = await requestPermission()
-    const perm = granted ? 'granted' : 'denied'
+    const perm = Notification.permission
     setPermission(perm)
     if (granted) {
       // For "push when site is closed", we also register a Web Push subscription.
       // (This will no-op on unsupported platforms.)
       await ensurePushSubscription({ user }).catch(() => undefined)
       scheduleAllNotifications({ activeBaby, babyLog, meds, vaccinations, prefs: notifPrefs })
+    } else {
+      if (perm === 'denied') {
+        setEnableError('ההרשאה נחסמה. פתחו הגדרות אתר בדפדפן ואפשרו Notifications.')
+      }
+    }
+  }
+
+  const testNotification = () => {
+    try {
+      new Notification('✅ בדיקת התראות — BabyCare', {
+        body: 'אם ראית את זה — ההתראות עובדות במכשיר הזה.',
+        icon: '/images/BabyCareLogo.png',
+        tag: 'babycare-test',
+      })
+    } catch {
+      // ignore
     }
   }
 
@@ -111,6 +154,17 @@ export default function NotificationsButton({
               בחר אילו התראות לקבל עבור {activeBaby?.name || 'התינוק'}
             </div>
 
+            {/* Diagnostics */}
+            <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 12, lineHeight: 1.5 }}>
+              סטטוס: {supported ? permission : 'לא נתמך'} · {isSecure ? 'HTTPS' : 'לא HTTPS'}
+            </div>
+
+            {enableError && (
+              <div style={{ background: '#ef444418', border: '1px solid #ef444440', borderRadius: 10, padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#ef4444' }}>
+                {enableError}
+              </div>
+            )}
+
             {/* Notification types with toggles */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
               {NOTIF_TYPES.map(t => (
@@ -138,12 +192,23 @@ export default function NotificationsButton({
                 🔔 הפעל התראות
               </button>
             ) : (
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, flexDirection: 'column' }}>
+                <button
+                  onClick={testNotification}
+                  style={{
+                    width: '100%', padding: '12px 0',
+                    background: '#22c55e18', color: '#22c55e',
+                    border: '1px solid #22c55e40', borderRadius: 12,
+                    fontFamily: 'Heebo', fontSize: 13, fontWeight: 800, cursor: 'pointer'
+                  }}
+                >
+                  🧪 שלח התראת בדיקה
+                </button>
                 <button
                   onClick={handleSave}
                   disabled={saving}
                   style={{
-                    flex: 2, padding: '13px 0',
+                    width: '100%', padding: '13px 0',
                     background: '#a78bfa', color: '#fff', border: 'none', borderRadius: 12,
                     fontFamily: 'Heebo', fontSize: 14, fontWeight: 700,
                     cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1
@@ -151,16 +216,18 @@ export default function NotificationsButton({
                 >
                   {saving ? '...' : '✅ שמור הגדרות'}
                 </button>
-                <button
-                  onClick={handleClose}
-                  style={{
-                    flex: 1, padding: '13px 0',
-                    background: '#21262d', color: '#e6edf3', border: '1px solid #30363d', borderRadius: 12,
-                    fontFamily: 'Heebo', fontSize: 14, fontWeight: 700, cursor: 'pointer'
-                  }}
-                >
-                  ביטול
-                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={handleClose}
+                    style={{
+                      flex: 1, padding: '13px 0',
+                      background: '#21262d', color: '#e6edf3', border: '1px solid #30363d', borderRadius: 12,
+                      fontFamily: 'Heebo', fontSize: 14, fontWeight: 700, cursor: 'pointer'
+                    }}
+                  >
+                    סגור
+                  </button>
+                </div>
               </div>
             )}
 

@@ -34,7 +34,7 @@ function _schedule(key, delayMs, fn) {
 }
 
 // ─── Low-level notification sender ──────────────────────────────────────────
-function _notify(title, body, tag, icon = '/baby-icon.png') {
+function _notify(title, body, tag, icon = '/images/BabyCareLogo.png') {
   if (!('Notification' in window) || Notification.permission !== 'granted') return
   try {
     new Notification(title, { body, icon, tag, renotify: true, requireInteraction: false })
@@ -46,6 +46,9 @@ function _notify(title, body, tag, icon = '/baby-icon.png') {
 // ─── Permission ──────────────────────────────────────────────────────────────
 export async function requestPermission() {
   if (!('Notification' in window)) return false
+  // Notification permission prompts generally require a secure context (HTTPS),
+  // except localhost. If not secure, browsers will deny silently or throw.
+  if (typeof window !== 'undefined' && window.isSecureContext === false) return false
   const result = await Notification.requestPermission()
   return result === 'granted'
 }
