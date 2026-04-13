@@ -32,3 +32,9 @@ vite.config.js.timestamp-*
 
 # Local Supabase
 .supabase
+
+# Supabase CLI (keep local, never commit)
+tools/supabase-cli/
+
+# Supabase CLI temp/link metadata (never commit)
+supabase/.temp/
