@@ -61,6 +61,12 @@ export default function App() {
   // ── Load notification prefs when user changes ────────────────────────────
   const notifPrefsFetched = useRef(false)
   useEffect(() => {
+    // Reset the fetch guard when switching users (or signing out),
+    // otherwise prefs won't reload for the next user in the same session.
+    notifPrefsFetched.current = false
+  }, [user?.id])
+
+  useEffect(() => {
     if (!user || notifPrefsFetched.current) return
     notifPrefsFetched.current = true
     db.getUserSetting(user.id, 'notif_prefs').then(({ data: saved }) => {
