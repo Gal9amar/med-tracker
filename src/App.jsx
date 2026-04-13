@@ -278,6 +278,7 @@ export default function App() {
           </button>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <NotificationsButton
+              user={user}
               activeBaby={activeBaby}
               babyLog={data.babyLog}
               meds={data.meds}

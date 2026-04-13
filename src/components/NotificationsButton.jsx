@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { requestPermission, scheduleAllNotifications } from '../notifications'
+import { ensurePushSubscription } from '../push'
 
 const NOTIF_TYPES = [
   { key: 'feeding',   icon: '🍼', title: 'האכלה הבאה',      desc: 'תזכורת לפי מרווחי האכלה שהוגדרו' },
@@ -10,6 +11,7 @@ const NOTIF_TYPES = [
 ]
 
 export default function NotificationsButton({
+  user,
   activeBaby, babyLog, meds, vaccinations,
   notifPrefs, onSavePrefs   // prefs object + save handler from App.jsx
 }) {
@@ -52,6 +54,9 @@ export default function NotificationsButton({
     const perm = granted ? 'granted' : 'denied'
     setPermission(perm)
     if (granted) {
+      // For "push when site is closed", we also register a Web Push subscription.
+      // (This will no-op on unsupported platforms.)
+      await ensurePushSubscription({ user }).catch(() => undefined)
       scheduleAllNotifications({ activeBaby, babyLog, meds, vaccinations, prefs: notifPrefs })
     }
   }

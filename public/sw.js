@@ -25,6 +25,55 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+// ─── Web Push events (works even when site is closed) ──────────────────────
+self.addEventListener('push', (event) => {
+  let payload = {}
+  try {
+    payload = event.data ? event.data.json() : {}
+  } catch {
+    try {
+      payload = { body: event.data?.text?.() }
+    } catch {
+      payload = {}
+    }
+  }
+
+  const title = payload.title || 'BabyCare'
+  const body = payload.body || 'יש עדכון חדש'
+  const tag = payload.tag || 'babycare'
+  const url = payload.url || '/'
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      tag,
+      icon: '/images/BabyCareLogo.png',
+      badge: '/images/BabyCareLogo.png',
+      data: { url },
+      renotify: true,
+    }),
+  )
+})
+
+self.addEventListener('notificationclick', (event) => {
+  const url = event.notification?.data?.url || '/'
+  event.notification.close()
+
+  event.waitUntil(
+    (async () => {
+      const allClients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      for (const client of allClients) {
+        if ('focus' in client) {
+          client.focus()
+          if ('navigate' in client) await client.navigate(url)
+          return
+        }
+      }
+      await self.clients.openWindow(url)
+    })(),
+  )
+})
+
 function isCacheableRequest(request) {
   if (request.method !== 'GET') return false
   const url = new URL(request.url)
