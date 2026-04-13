@@ -90,41 +90,121 @@ export async function createInviteCode(familyId, userId) {
   return { data, error }
 }
 
-export async function joinByCode(code, userId, displayName) {
-  // Find valid invite
-  const { data: invite, error: ie } = await supabase
+// Validate invite code without joining — returns invite data or error
+export async function validateInviteCode(code) {
+  const { data: invite, error } = await supabase
     .from('invite_codes')
     .select('*')
     .eq('code', code.toUpperCase())
     .is('used_by', null)
     .gt('expires_at', new Date().toISOString())
     .single()
+  if (error || !invite) return { error: { message: 'קוד לא תקין או פג תוקף' } }
+  return { data: invite }
+}
 
-  if (ie || !invite) return { error: { message: 'קוד לא תקין או פג תוקף' } }
+// Get summary of user's existing family data (for migration prompt)
+export async function getFamilyDataSummary(familyId) {
+  const [babies, log, meds, vax, growth, miles] = await Promise.all([
+    supabase.from('babies').select('id, name').eq('family_id', familyId),
+    supabase.from('baby_log').select('id', { count: 'exact', head: true }).eq('family_id', familyId),
+    supabase.from('meds').select('id', { count: 'exact', head: true }).eq('family_id', familyId),
+    supabase.from('vaccinations').select('id', { count: 'exact', head: true }).eq('family_id', familyId),
+    supabase.from('growth_log').select('id', { count: 'exact', head: true }).eq('family_id', familyId),
+    supabase.from('milestones').select('id', { count: 'exact', head: true }).eq('family_id', familyId),
+  ])
+  return {
+    babies: babies.data || [],
+    logCount: log.count || 0,
+    medsCount: meds.count || 0,
+    vaxCount: vax.count || 0,
+    growthCount: growth.count || 0,
+    milesCount: miles.count || 0,
+  }
+}
 
-  // Check not already a member
+// Migrate all data from oldFamilyId to newFamilyId, then join
+export async function joinByCodeWithMigration(code, userId, displayName, migrate) {
+  // 1. Validate code
+  const { data: invite, error: ie } = await validateInviteCode(code)
+  if (ie) return { error: ie }
+
+  // 2. Check not already a member
   const { data: existing } = await supabase
     .from('family_members')
     .select('id')
     .eq('family_id', invite.family_id)
     .eq('member_id', userId)
-    .single()
-
+    .maybeSingle()
   if (existing) return { error: { message: 'כבר חבר במשפחה זו' } }
 
-  // Join family
+  // 3. If migrate — move all data from old family to new family
+  if (migrate) {
+    const { data: oldFm } = await supabase
+      .from('family_members')
+      .select('family_id')
+      .eq('member_id', userId)
+      .maybeSingle()
+
+    if (oldFm?.family_id) {
+      const oldFid = oldFm.family_id
+      const newFid = invite.family_id
+
+      // Get babies from old family to remap baby_id references
+      const { data: oldBabies } = await supabase
+        .from('babies')
+        .select('id')
+        .eq('family_id', oldFid)
+
+      const babyIds = (oldBabies || []).map(b => b.id)
+
+      // Move all family-scoped tables
+      const familyTables = ['babies', 'meds', 'prescriptions', 'inventory', 'invite_codes']
+      for (const table of familyTables) {
+        await supabase.from(table).update({ family_id: newFid }).eq('family_id', oldFid)
+      }
+
+      // Move baby-scoped tables (need baby_id filter)
+      if (babyIds.length > 0) {
+        const babyTables = ['baby_log', 'med_log', 'vaccinations', 'growth_log', 'milestones']
+        for (const table of babyTables) {
+          await supabase.from(table)
+            .update({ family_id: newFid })
+            .eq('family_id', oldFid)
+            .in('baby_id', babyIds)
+        }
+      }
+
+      // Remove from old family
+      await supabase.from('family_members').delete().eq('family_id', oldFid).eq('member_id', userId)
+      // Delete old family if now empty
+      const { data: remaining } = await supabase
+        .from('family_members')
+        .select('id')
+        .eq('family_id', oldFid)
+      if (!remaining || remaining.length === 0) {
+        await supabase.from('families').delete().eq('id', oldFid)
+      }
+    }
+  }
+
+  // 4. Join new family
   const { error: me } = await supabase
     .from('family_members')
     .insert({ family_id: invite.family_id, member_id: userId, role: 'parent', display_name: displayName })
   if (me) return { error: me }
 
-  // Mark code as used
+  // 5. Mark code as used
   await supabase
     .from('invite_codes')
     .update({ used_by: userId, used_at: new Date().toISOString() })
     .eq('id', invite.id)
 
   return { data: { family_id: invite.family_id } }
+}
+
+export async function joinByCode(code, userId, displayName) {
+  return joinByCodeWithMigration(code, userId, displayName, false)
 }
 
 // ─── BABIES ──────────────────────────────────────────────────────────────────

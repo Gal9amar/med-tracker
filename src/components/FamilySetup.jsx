@@ -6,13 +6,13 @@ export default function FamilySetup({ user, onFamilyCreated, onSignOut }) {
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [migrationPrompt, setMigrationPrompt] = useState(null) // { summary, invite }
 
   const displayName = user.user_metadata?.display_name || user.email?.split('@')[0] || 'הורה'
 
   const handleCreate = async () => {
     setLoading(true)
     setError('')
-    // Ensure member record exists (handles email-confirmed users who bypassed AuthScreen upsert)
     const { data: memberData, error: memberErr } = await db.upsertMember(user.id, user.email, displayName)
     if (memberErr) { setError('שגיאה ביצירת פרופיל משתמש: ' + (memberErr.message || JSON.stringify(memberErr))); setLoading(false); return }
     const { data: family, error: err } = await db.createFamily(user.id, displayName)
@@ -20,15 +20,37 @@ export default function FamilySetup({ user, onFamilyCreated, onSignOut }) {
     onFamilyCreated(family)
   }
 
-  const handleJoin = async () => {
+  const handleJoinValidate = async () => {
     if (!code.trim()) { setError('הכניסו את קוד ההזמנה שקיבלתם'); return }
     setLoading(true)
     setError('')
-    // Ensure member record exists before joining
     await db.upsertMember(user.id, user.email, displayName)
-    const { data, error: err } = await db.joinByCode(code.trim(), user.id, displayName)
+
+    // Validate code first
+    const { data: invite, error: invErr } = await db.validateInviteCode(code.trim())
+    if (invErr) { setError(invErr.message); setLoading(false); return }
+
+    // Check if user has existing family with data
+    const { data: existingFm } = await db.getUserFamily(user.id)
+    if (existingFm?.family_id) {
+      const summary = await db.getFamilyDataSummary(existingFm.family_id)
+      const hasData = summary.babies.length > 0 || summary.logCount > 0
+      if (hasData) {
+        setMigrationPrompt({ summary, invite })
+        setLoading(false)
+        return
+      }
+    }
+
+    // No existing data — just join
+    await doJoin(false)
+  }
+
+  const doJoin = async (migrate) => {
+    setLoading(true)
+    setMigrationPrompt(null)
+    const { data, error: err } = await db.joinByCodeWithMigration(code.trim(), user.id, displayName, migrate)
     if (err) { setError(err.message); setLoading(false); return }
-    // Reload family
     const { data: fm } = await db.getUserFamily(user.id)
     if (fm?.families) onFamilyCreated(fm.families)
     setLoading(false)
@@ -81,7 +103,7 @@ export default function FamilySetup({ user, onFamilyCreated, onSignOut }) {
         </div>
       )}
 
-      {mode === 'join' && (
+      {mode === 'join' && !migrationPrompt && (
         <div style={{ width: '100%', maxWidth: 320 }}>
           <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 16, padding: 24 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#e6edf3', marginBottom: 8 }}>הצטרפות למשפחה 🔗</div>
@@ -102,11 +124,54 @@ export default function FamilySetup({ user, onFamilyCreated, onSignOut }) {
               }}
             />
             {error && <div style={errStyle}>{error}</div>}
-            <button onClick={handleJoin} disabled={loading} style={submitBtn}>
+            <button onClick={handleJoinValidate} disabled={loading} style={submitBtn}>
               {loading ? '...' : '🔗 הצטרף'}
             </button>
           </div>
           <button onClick={() => { setMode(null); setError('') }} style={backBtn}>← חזור</button>
+        </div>
+      )}
+
+      {migrationPrompt && (
+        <div style={{ width: '100%', maxWidth: 340 }}>
+          <div style={{ background: '#161b22', border: '1px solid #f59e0b40', borderRadius: 16, padding: 24 }}>
+            <div style={{ fontSize: 18, marginBottom: 8 }}>📦</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#e6edf3', marginBottom: 8 }}>
+              נמצאו נתונים קיימים
+            </div>
+            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 16, lineHeight: 1.6 }}>
+              יש לך נתונים שמורים:
+            </div>
+            <div style={{ background: '#0d1117', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#e6edf3', lineHeight: 1.8 }}>
+              {migrationPrompt.summary.babies.length > 0 && (
+                <div>👶 תינוקות: <b>{migrationPrompt.summary.babies.map(b => b.name).join(', ')}</b></div>
+              )}
+              {migrationPrompt.summary.logCount > 0 && (
+                <div>📋 רשומות יומן: <b>{migrationPrompt.summary.logCount}</b></div>
+              )}
+              {migrationPrompt.summary.vaxCount > 0 && (
+                <div>💉 חיסונים: <b>{migrationPrompt.summary.vaxCount}</b></div>
+              )}
+              {migrationPrompt.summary.growthCount > 0 && (
+                <div>📏 מדידות גדילה: <b>{migrationPrompt.summary.growthCount}</b></div>
+              )}
+            </div>
+            <div style={{ fontSize: 13, color: '#f59e0b', marginBottom: 20, lineHeight: 1.6 }}>
+              האם להעביר את הנתונים למשפחה המשותפת?
+            </div>
+            {error && <div style={errStyle}>{error}</div>}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <button onClick={() => doJoin(true)} disabled={loading} style={{ ...submitBtn, background: '#22c55e' }}>
+                {loading ? '...' : '✅ כן, העבר את הנתונים'}
+              </button>
+              <button onClick={() => doJoin(false)} disabled={loading} style={{ ...submitBtn, background: '#374151' }}>
+                {loading ? '...' : '❌ לא, התחל מחדש'}
+              </button>
+              <button onClick={() => { setMigrationPrompt(null); setLoading(false) }} style={backBtn}>
+                ← ביטול
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
