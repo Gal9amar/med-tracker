@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../supabase'
+import * as db from '../db'
 
 export default function AuthScreen({ onAuth }) {
   const [mode, setMode] = useState('login') // 'login' | 'register' | 'forgot'
@@ -44,7 +45,11 @@ export default function AuthScreen({ onAuth }) {
         return
       }
       // If email confirm disabled in Supabase → session exists immediately
-      if (data.session) onAuth(data.session.user)
+      if (data.session) {
+        const fullName = name.trim() || email.split('@')[0]
+        await db.upsertMember(data.session.user.id, email.trim(), fullName)
+        onAuth(data.session.user)
+      }
     } else {
       const { data, error: err } = await supabase.auth.signInWithPassword({
         email: email.trim(),
@@ -57,6 +62,9 @@ export default function AuthScreen({ onAuth }) {
         setLoading(false)
         return
       }
+      // Upsert member on every login (handles users registered before members table existed)
+      const fullName = data.user.user_metadata?.display_name || data.user.email?.split('@')[0] || ''
+      await db.upsertMember(data.user.id, data.user.email, fullName)
       onAuth(data.user)
     }
     setLoading(false)

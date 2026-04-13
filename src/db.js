@@ -24,6 +24,19 @@ export const getSession = () => supabase.auth.getSession()
 export const getUser = () => supabase.auth.getUser()
 export const signOut = () => supabase.auth.signOut()
 
+// ─── MEMBERS ─────────────────────────────────────────────────────────────────
+
+export async function upsertMember(userId, email, fullName) {
+  return supabase
+    .from('members')
+    .upsert({ id: userId, email, full_name: fullName }, { onConflict: 'id' })
+    .select().single()
+}
+
+export async function getMember(userId) {
+  return supabase.from('members').select('*').eq('id', userId).maybeSingle()
+}
+
 // ─── FAMILY ──────────────────────────────────────────────────────────────────
 
 export async function createFamily(userId, displayName) {
@@ -37,7 +50,7 @@ export async function createFamily(userId, displayName) {
   // 2. Add creator as admin member
   const { error: me } = await supabase
     .from('family_members')
-    .insert({ family_id: family.id, user_id: userId, role: 'admin', display_name: displayName })
+    .insert({ family_id: family.id, member_id: userId, role: 'admin', display_name: displayName })
   if (me) return { error: me }
 
   return { data: family }
@@ -47,7 +60,7 @@ export async function getUserFamily(userId) {
   const { data, error } = await supabase
     .from('family_members')
     .select('family_id, role, families(*)')
-    .eq('user_id', userId)
+    .eq('member_id', userId)
     .maybeSingle()
   return { data, error }
 }
@@ -85,7 +98,7 @@ export async function joinByCode(code, userId, displayName) {
     .from('family_members')
     .select('id')
     .eq('family_id', invite.family_id)
-    .eq('user_id', userId)
+    .eq('member_id', userId)
     .single()
 
   if (existing) return { error: { message: 'כבר חבר במשפחה זו' } }
@@ -93,7 +106,7 @@ export async function joinByCode(code, userId, displayName) {
   // Join family
   const { error: me } = await supabase
     .from('family_members')
-    .insert({ family_id: invite.family_id, user_id: userId, role: 'parent', display_name: displayName })
+    .insert({ family_id: invite.family_id, member_id: userId, role: 'parent', display_name: displayName })
   if (me) return { error: me }
 
   // Mark code as used
@@ -295,6 +308,8 @@ export async function deleteAllFamilyData(familyId, userId) {
   await supabase.from('user_settings').delete().eq('user_id', userId)
   // Delete the family record itself
   await supabase.from('families').delete().eq('id', familyId)
+  // Delete member record (cascade will handle auth.users if configured)
+  await supabase.from('members').delete().eq('id', userId)
   // Sign out
   await supabase.auth.signOut()
 }
