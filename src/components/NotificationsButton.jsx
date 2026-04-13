@@ -22,7 +22,6 @@ export default function NotificationsButton({
   const [draft, setDraft]         = useState(null)
   const [saving, setSaving]       = useState(false)
   const [enableError, setEnableError] = useState('')
-  const [testStatus, setTestStatus] = useState('')
 
   const isGranted = permission === 'granted'
   const isSecure = typeof window !== 'undefined' ? window.isSecureContext !== false : true
@@ -49,7 +48,6 @@ export default function NotificationsButton({
 
   const openPanel = () => {
     setEnableError('')
-    setTestStatus('')
     if (supported) setPermission(Notification.permission)
     setDraft({ ...notifPrefs })
     setShowPanel(true)
@@ -58,7 +56,6 @@ export default function NotificationsButton({
   const handleClose = () => {
     setDraft(null)
     setEnableError('')
-    setTestStatus('')
     setShowPanel(false)
   }
 
@@ -72,7 +69,6 @@ export default function NotificationsButton({
 
   const handleEnable = async () => {
     setEnableError('')
-    setTestStatus('')
     if (!supported) {
       setEnableError('הדפדפן לא תומך בהתראות')
       return
@@ -94,54 +90,6 @@ export default function NotificationsButton({
       if (perm === 'denied') {
         setEnableError('ההרשאה נחסמה. פתחו הגדרות אתר בדפדפן ואפשרו Notifications.')
       }
-    }
-  }
-
-  const testNotification = async () => {
-    setTestStatus('')
-    try {
-      if (!supported) {
-        setTestStatus('❌ הדפדפן לא תומך בהתראות')
-        return
-      }
-      if (!isSecure) {
-        setTestStatus('❌ צריך HTTPS כדי להציג התראות')
-        return
-      }
-      if (Notification.permission !== 'granted') {
-        setTestStatus(`❌ אין הרשאה (סטטוס: ${Notification.permission})`)
-        return
-      }
-
-      const title = '✅ בדיקת התראות — BabyCare'
-      const opts = {
-        body: 'אם ראית את זה — ההתראות עובדות במכשיר הזה.',
-        icon: '/images/BabyCareLogo.png',
-        tag: 'babycare-test',
-        renotify: true,
-      }
-
-      // Try window Notification first
-      try {
-        new Notification(title, opts)
-        setTestStatus('✅ נשלח (Notification API)')
-        return
-      } catch (e) {
-        // Fallback to SW registration (more reliable in some contexts)
-        try {
-          const reg = await navigator.serviceWorker?.ready
-          await reg?.showNotification?.(title, opts)
-          setTestStatus('✅ נשלח (Service Worker)')
-          return
-        } catch (e2) {
-          const msg = (e2 && typeof e2 === 'object' && 'message' in e2) ? String(e2.message) : 'נחסם ע"י הדפדפן/מערכת'
-          setTestStatus(`❌ נכשל: ${msg}`)
-          return
-        }
-      }
-    } catch (e) {
-      const msg = (e && typeof e === 'object' && 'message' in e) ? String(e.message) : 'שגיאה לא ידועה'
-      setTestStatus(`❌ נכשל: ${msg}`)
     }
   }
 
@@ -195,20 +143,9 @@ export default function NotificationsButton({
               בחר אילו התראות לקבל עבור {activeBaby?.name || 'התינוק'}
             </div>
 
-            {/* Diagnostics */}
-            <div style={{ fontSize: 11, color: '#6b7280', marginBottom: 12, lineHeight: 1.5 }}>
-              סטטוס: {supported ? permission : 'לא נתמך'} · {isSecure ? 'HTTPS' : 'לא HTTPS'}
-            </div>
-
             {enableError && (
               <div style={{ background: '#ef444418', border: '1px solid #ef444440', borderRadius: 10, padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#ef4444' }}>
                 {enableError}
-              </div>
-            )}
-
-            {testStatus && (
-              <div style={{ background: '#0d1117', border: '1px solid #30363d', borderRadius: 10, padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#e6edf3' }}>
-                {testStatus}
               </div>
             )}
 
@@ -239,23 +176,12 @@ export default function NotificationsButton({
                 🔔 הפעל התראות
               </button>
             ) : (
-              <div style={{ display: 'flex', gap: 8, flexDirection: 'column' }}>
-                <button
-                  onClick={testNotification}
-                  style={{
-                    width: '100%', padding: '12px 0',
-                    background: '#22c55e18', color: '#22c55e',
-                    border: '1px solid #22c55e40', borderRadius: 12,
-                    fontFamily: 'Heebo', fontSize: 13, fontWeight: 800, cursor: 'pointer'
-                  }}
-                >
-                  🧪 שלח התראת בדיקה
-                </button>
+              <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   onClick={handleSave}
                   disabled={saving}
                   style={{
-                    width: '100%', padding: '13px 0',
+                    flex: 2, padding: '13px 0',
                     background: '#a78bfa', color: '#fff', border: 'none', borderRadius: 12,
                     fontFamily: 'Heebo', fontSize: 14, fontWeight: 700,
                     cursor: saving ? 'default' : 'pointer', opacity: saving ? 0.7 : 1
@@ -263,18 +189,16 @@ export default function NotificationsButton({
                 >
                   {saving ? '...' : '✅ שמור הגדרות'}
                 </button>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={handleClose}
-                    style={{
-                      flex: 1, padding: '13px 0',
-                      background: '#21262d', color: '#e6edf3', border: '1px solid #30363d', borderRadius: 12,
-                      fontFamily: 'Heebo', fontSize: 14, fontWeight: 700, cursor: 'pointer'
-                    }}
-                  >
-                    סגור
-                  </button>
-                </div>
+                <button
+                  onClick={handleClose}
+                  style={{
+                    flex: 1, padding: '13px 0',
+                    background: '#21262d', color: '#e6edf3', border: '1px solid #30363d', borderRadius: 12,
+                    fontFamily: 'Heebo', fontSize: 14, fontWeight: 700, cursor: 'pointer'
+                  }}
+                >
+                  ביטול
+                </button>
               </div>
             )}
 
