@@ -15,3 +15,13 @@ body {
 ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
 input, select, textarea { font-family: 'Heebo', sans-serif; }
 button { font-family: 'Heebo', sans-serif; }
+
+/* Date input calendar icon — white on dark background */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+  opacity: 0.7;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
