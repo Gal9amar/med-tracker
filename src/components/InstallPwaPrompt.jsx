@@ -33,11 +33,19 @@ export default function InstallPwaPrompt() {
       return
     }
 
+    // On Chrome/Edge: show our popup even before beforeinstallprompt,
+    // but enable the install button only after the event arrives.
+    const dismissed = localStorage.getItem('babycare_install_dismissed') === '1'
+    if (!dismissed) {
+      const t = setTimeout(() => setVisible(true), 1200)
+      return () => clearTimeout(t)
+    }
+
     const onBeforeInstallPrompt = (e) => {
       e.preventDefault()
       setDeferredPrompt(e)
-      const dismissed = localStorage.getItem('babycare_install_dismissed') === '1'
-      if (!dismissed) setVisible(true)
+      const dismissed2 = localStorage.getItem('babycare_install_dismissed') === '1'
+      if (!dismissed2) setVisible(true)
     }
 
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
@@ -114,6 +122,11 @@ export default function InstallPwaPrompt() {
         ) : (
           <div style={{ background: '#0d1117', border: '1px solid #30363d', borderRadius: 14, padding: 12, color: '#8b949e', fontSize: 13, lineHeight: 1.7 }}>
             ניתן להתקין את האפליקציה למסך הבית. לאחר התקנה תקבלו חוויית מסך מלא וגישה מהירה.
+            {!deferredPrompt && (
+              <div style={{ marginTop: 8, color: '#6b7280' }}>
+                אם כפתור ההתקנה אפור: נסו לרענן, או לפתוח תפריט ⋮ בדפדפן ולבחור “Install app”.
+              </div>
+            )}
           </div>
         )}
 
