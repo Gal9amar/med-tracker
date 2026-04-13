@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import * as db from '../db'
 import { genderColor } from '../utils'
 import { supabase } from '../supabase'
@@ -15,6 +15,18 @@ export default function BabySwitcher({ babies, activeBabyId, family, user, onSwi
   const [deleting, setDeleting] = useState(false)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const fileInputRef = useRef(null)
+  const sheetRef = useRef(null)
+
+  // Ensure the "add baby" form starts at the top so the photo upload section is visible.
+  useEffect(() => {
+    if (view !== 'add') return
+    const el = sheetRef.current
+    if (!el) return
+    // Use a microtask to allow layout to settle.
+    queueMicrotask(() => {
+      try { el.scrollTo({ top: 0, behavior: 'smooth' }) } catch { el.scrollTop = 0 }
+    })
+  }, [view, editBaby?.id, forceAdd])
 
   function defaultForm(baby) {
     return {
@@ -103,7 +115,7 @@ export default function BabySwitcher({ babies, activeBabyId, family, user, onSwi
       <div style={{
         width: '100%', background: '#161b22', borderRadius: '20px 20px 0 0',
         border: '1px solid #30363d', maxHeight: '90vh', overflowY: 'auto'
-      }} onClick={e => e.stopPropagation()}>
+      }} onClick={e => e.stopPropagation()} ref={sheetRef}>
 
         {/* Handle */}
         <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 0' }}>

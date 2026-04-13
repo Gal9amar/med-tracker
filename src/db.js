@@ -4,6 +4,20 @@
  */
 import { supabase } from './supabase'
 
+function _extractStoragePathFromPublicUrl(publicUrl, bucket) {
+  if (!publicUrl || typeof publicUrl !== 'string') return null
+  // Expected: .../storage/v1/object/public/<bucket>/<path>
+  const marker = `/storage/v1/object/public/${bucket}/`
+  const idx = publicUrl.indexOf(marker)
+  if (idx === -1) return null
+  const raw = publicUrl.slice(idx + marker.length)
+  try {
+    return decodeURIComponent(raw.split('?')[0])
+  } catch {
+    return raw.split('?')[0]
+  }
+}
+
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 
 export const getSession = () => supabase.auth.getSession()
@@ -263,6 +277,10 @@ export async function setUserSetting(userId, key, value) {
 // We delete what RLS lets us delete directly from the client.
 
 export async function deleteAllFamilyData(familyId, userId) {
+  // Delete baby photos from Storage using an Edge Function (service-role),
+  // so it works even when Storage RLS blocks client-side delete/list.
+  await supabase.functions.invoke('delete-family-photos', { body: { familyId } }).catch(() => undefined)
+
   // Delete all family-scoped data in dependency order
   const familyTables = [
     'milestones', 'growth_log', 'vaccinations',
