@@ -29,14 +29,17 @@ export default function HamburgerMenu({ user, family, babies, memberProfile, onP
   const [editError, setEditError] = useState('')
   const [editSuccess, setEditSuccess] = useState(false)
 
-  const displayName = memberProfile?.full_name || user?.user_metadata?.display_name || user?.email?.split('@')[0]
+  const myMember = familyMembers.find(m => m.member_id === user?.id)
+  const displayName = myMember?.members?.full_name || memberProfile?.full_name || user?.user_metadata?.display_name || user?.email?.split('@')[0]
 
-  useEffect(() => {
+  const loadFamilyMembers = () => {
     if (!family?.id) return
     db.getFamilyMembers(family.id).then(({ data }) => {
       if (data) setFamilyMembers(data)
     })
-  }, [family?.id])
+  }
+
+  useEffect(() => { loadFamilyMembers() }, [family?.id])
 
   const handleGenerateCode = async () => {
     setInviteLoading(true)
@@ -245,9 +248,7 @@ export default function HamburgerMenu({ user, family, babies, memberProfile, onP
                 if (error) { setEditError(error.message); return }
                 setEditSuccess(true)
                 onProfileUpdated?.()
-                // Refresh family members list
-                const { data } = await db.getFamilyMembers(family.id)
-                if (data) setFamilyMembers(data)
+                loadFamilyMembers()
               }}
               disabled={editLoading}
               style={{
