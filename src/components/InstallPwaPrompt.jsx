@@ -14,6 +14,7 @@ export default function InstallPwaPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState(null)
   const [visible, setVisible] = useState(false)
   const [platform, setPlatform] = useState('other') // ios | other
+  const [showHowTo, setShowHowTo] = useState(false)
 
   const canShow = useMemo(() => {
     if (isStandalone()) return false
@@ -38,8 +39,14 @@ export default function InstallPwaPrompt() {
     const dismissed = localStorage.getItem('babycare_install_dismissed') === '1'
     const t = !dismissed ? setTimeout(() => setVisible(true), 1200) : null
 
+    // If the install prompt was already captured in main.jsx, use it.
+    if (window.__babycareBeforeInstallPrompt) {
+      setDeferredPrompt(window.__babycareBeforeInstallPrompt)
+    }
+
     const onBeforeInstallPrompt = (e) => {
       e.preventDefault()
+      window.__babycareBeforeInstallPrompt = e
       setDeferredPrompt(e)
       const dismissed2 = localStorage.getItem('babycare_install_dismissed') === '1'
       if (!dismissed2) setVisible(true)
@@ -66,7 +73,10 @@ export default function InstallPwaPrompt() {
   }
 
   const install = async () => {
-    if (!deferredPrompt) return
+    if (!deferredPrompt) {
+      setShowHowTo(true)
+      return
+    }
     try {
       await deferredPrompt.prompt()
       // userChoice is deprecated in some browsers, but still widely present.
@@ -130,9 +140,9 @@ export default function InstallPwaPrompt() {
         ) : (
           <div style={{ background: '#0d1117', border: '1px solid #30363d', borderRadius: 14, padding: 12, color: '#8b949e', fontSize: 13, lineHeight: 1.7 }}>
             ניתן להתקין את האפליקציה למסך הבית. לאחר התקנה תקבלו חוויית מסך מלא וגישה מהירה.
-            {!deferredPrompt && (
+            {(!deferredPrompt || showHowTo) && (
               <div style={{ marginTop: 8, color: '#6b7280' }}>
-                אם כפתור ההתקנה אפור: נסו לרענן, או לפתוח תפריט ⋮ בדפדפן ולבחור “Install app”.
+                אם לא נפתח חלון התקנה: פתחו תפריט ⋮ בדפדפן ובחרו “Install app” / “התקן אפליקציה”.
               </div>
             )}
           </div>
@@ -142,19 +152,17 @@ export default function InstallPwaPrompt() {
           {platform !== 'ios' ? (
             <button
               onClick={install}
-              disabled={!deferredPrompt}
               style={{
                 flex: 2,
                 padding: '12px 0',
-                background: deferredPrompt ? '#a78bfa' : '#3b2f6e',
+                background: '#a78bfa',
                 color: '#fff',
                 border: 'none',
                 borderRadius: 12,
                 fontFamily: 'Heebo',
                 fontSize: 14,
                 fontWeight: 800,
-                cursor: deferredPrompt ? 'pointer' : 'default',
-                opacity: deferredPrompt ? 1 : 0.75,
+                cursor: 'pointer',
               }}
             >
               ⬇️ התקן אפליקציה
