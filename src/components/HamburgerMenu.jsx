@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import * as db from '../db'
 
-export default function HamburgerMenu({ user, family, babies, onClose, onSignOut, onManageBabies, onOpenVaccinations }) {
-  const [view, setView] = useState('main') // 'main' | 'invite'
+export default function HamburgerMenu({ user, family, babies, onClose, onSignOut, onManageBabies, onOpenVaccinations, onDeleteAccount }) {
+  const [view, setView] = useState('main') // 'main' | 'invite' | 'delete-account'
   const [inviteCode, setInviteCode] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
   const [inviteError, setInviteError] = useState('')
+  const [deleteLoading, setDeleteLoading] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
 
   const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0]
 
@@ -74,6 +76,53 @@ export default function HamburgerMenu({ user, family, babies, onClose, onSignOut
             <div style={{ height: 1, background: '#30363d', margin: '8px 0' }} />
 
             <MenuItem icon="🚪" label="יציאה מהחשבון" onClick={onSignOut} color="#ef4444" />
+            <MenuItem icon="🗑️" label="מחיקת חשבון וכל הנתונים" onClick={() => setView('delete-account')} color="#ef4444" />
+          </div>
+        )}
+
+        {view === 'delete-account' && (
+          <div style={{ padding: 20 }}>
+            <button onClick={() => { setView('main'); setDeleteConfirmText('') }} style={{ background: 'none', border: 'none', color: '#8b949e', fontSize: 13, cursor: 'pointer', fontFamily: 'Heebo', marginBottom: 16 }}>
+              ← חזור
+            </button>
+            <div style={{ fontSize: 18, marginBottom: 6, textAlign: 'center' }}>🗑️</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#ef4444', marginBottom: 8, textAlign: 'center' }}>מחיקת חשבון</div>
+            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 20, lineHeight: 1.7 }}>
+              פעולה זו תמחק לצמיתות את כל הנתונים של המשפחה:
+              תינוקות, האכלות, חיתולים, חיסונים, תרופות, מדידות ועוד.
+              <br /><br />
+              <strong style={{ color: '#ef4444' }}>לא ניתן לשחזר את הנתונים לאחר המחיקה.</strong>
+            </div>
+            <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 8 }}>
+              לאישור, הקלידו: <strong style={{ color: '#e6edf3' }}>מחק חשבון</strong>
+            </div>
+            <input
+              value={deleteConfirmText}
+              onChange={e => setDeleteConfirmText(e.target.value)}
+              placeholder='הקלידו "מחק חשבון"'
+              style={{
+                width: '100%', background: '#0d1117', border: '1px solid #ef444440',
+                borderRadius: 10, padding: '11px 13px', color: '#e6edf3',
+                fontFamily: 'Heebo', fontSize: 14, outline: 'none',
+                boxSizing: 'border-box', marginBottom: 16
+              }}
+            />
+            <button
+              onClick={async () => {
+                setDeleteLoading(true)
+                await onDeleteAccount()
+              }}
+              disabled={deleteConfirmText !== 'מחק חשבון' || deleteLoading}
+              style={{
+                width: '100%', padding: '13px 0',
+                background: deleteConfirmText === 'מחק חשבון' && !deleteLoading ? '#ef4444' : '#374151',
+                color: '#fff', border: 'none', borderRadius: 12,
+                fontFamily: 'Heebo', fontSize: 15, fontWeight: 700,
+                cursor: deleteConfirmText === 'מחק חשבון' && !deleteLoading ? 'pointer' : 'default'
+              }}
+            >
+              {deleteLoading ? '⏳ מוחק...' : '🗑️ מחק את כל הנתונים ואת החשבון'}
+            </button>
           </div>
         )}
 

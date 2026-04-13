@@ -2,14 +2,16 @@ import { useState } from 'react'
 import { ageInMonths } from '../utils'
 import { MILESTONES, CATEGORY_META } from '../data/milestones'
 import * as db from '../db'
+import { BabyAvatar } from '../components/BabySwitcher'
 
 const GROWTH_VIEWS = [
   { id: 'measurements', label: 'מדידות',  icon: '📏' },
   { id: 'milestones',   label: 'אבני דרך', icon: '🌟' },
 ]
 
-export default function GrowthTab({ data, reload, family, activeBaby, babyName, themeColor = '#a78bfa' }) {
-  const [view, setView] = useState('measurements')
+export default function GrowthTab({ data, reload, family, activeBaby, babyName, themeColor = '#a78bfa', growthView, setGrowthView }) {
+  const view = growthView || 'milestones'
+  const setView = setGrowthView || (() => {})
   const [showForm, setShowForm] = useState(false)
   const [milestoneFilter, setMilestoneFilter] = useState('all')
 
@@ -24,7 +26,7 @@ export default function GrowthTab({ data, reload, family, activeBaby, babyName, 
     <div style={{ direction: 'rtl', fontFamily: 'Heebo' }}>
       {/* Baby summary */}
       <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 14, padding: '14px 16px', marginBottom: 16, display: 'flex', gap: 16 }}>
-        <span style={{ fontSize: 40 }}>{activeBaby.avatar || '👶'}</span>
+        <BabyAvatar baby={activeBaby} size={48} />
         <div>
           <div style={{ fontWeight: 800, fontSize: 16, color: '#f9a8d4' }}>{babyName}</div>
           <div style={{ fontSize: 12, color: '#8b949e', marginTop: 2 }}>
@@ -276,20 +278,23 @@ function MilestonesView({ babyMilestones, babyId, family, months, filter, setFil
         const isSoon = !achieved && months >= m.expectedMonth - 1 && months <= m.expectedMonth + 1
         const catMeta = CATEGORY_META[m.category]
         return (
-          <div key={m.id} style={{
+          <div key={m.id} onClick={() => !saving && handleToggle(m)} style={{
             display: 'flex', alignItems: 'center', gap: 12,
             background: achieved ? '#22c55e10' : '#161b22',
             border: `1px solid ${achieved ? '#22c55e40' : isLate ? '#ef444430' : '#30363d'}`,
-            borderRadius: 12, padding: '12px 14px', marginBottom: 8
+            borderRadius: 12, padding: '12px 14px', marginBottom: 8,
+            cursor: saving === m.id ? 'default' : 'pointer',
+            userSelect: 'none'
           }}>
-            <button onClick={() => handleToggle(m)} disabled={saving === m.id} style={{
+            <div style={{
               width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
               background: achieved ? '#22c55e' : '#21262d',
               border: `2px solid ${achieved ? '#22c55e' : '#30363d'}`,
-              cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center'
+              fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff'
             }}>
               {saving === m.id ? '⟳' : achieved ? '✓' : ''}
-            </button>
+            </div>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: achieved ? '#86efac' : '#e6edf3' }}>{m.name}</div>
               <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>

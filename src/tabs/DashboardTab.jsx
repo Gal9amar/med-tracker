@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ageInMonths } from '../utils'
 import DateNavigator, { useDateNav } from '../components/DateNavigator'
 import * as db from '../db'
+import { MILESTONES } from '../data/milestones'
 
 // ─── Vitamin protocol (Tipat Chalav / MOH Israel) ────────────────────────────
 function getRequiredVitamins(months, weightKg) {
@@ -131,7 +132,7 @@ export default function DashboardTab({ data, reload, family, activeBaby, babyNam
     if (!med) return
     setSavingMed(true)
     const dose = med === 'paracetamol' ? paraDose : ibuDose
-    await db.addLog(family.id, babyId, {
+    const { data, error } = await db.addLog(family.id, babyId, {
       type: 'fever_med', date: dateKey, time: medTime,
       medicine: med, dose_mg: dose?.mg || null, dose_ml: dose?.syrupMl || null,
     })
@@ -161,24 +162,15 @@ export default function DashboardTab({ data, reload, family, activeBaby, babyNam
       <DateNavigator dateLabel={dateLabel} isToday={isToday} onBack={goBack} onForward={goForward} color={themeColor} />
 
       {/* ── ALERTS BAR ───────────────────────────────────────────── */}
-      {(hasFever || overdueVax.length > 0) && (
+      {overdueVax.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
-          {hasFever && (
-            <AlertBanner
-              icon={highFever ? '🔴' : '🌡️'}
-              text={`חום ${lastTemp.temperature}°C — ${highFever ? 'פנה לרופא!' : 'עקוב מקרוב'}`}
-              color="#ef4444"
-              action="טיפול בחום"
-              onAction={() => setShowFeverModal(true)}
-            />
-          )}
-          {overdueVax.length > 0 && (
-            <AlertBanner
-              icon="⚠️"
-              text={`${overdueVax.length} חיסון/ים באיחור — פנה לטיפת חלב`}
-              color="#f59e0b"
-            />
-          )}
+          <AlertBanner
+            icon="⚠️"
+            text={`${overdueVax.length} חיסון/ים שעדיין לא בוצעו — כדאי לתאם עם טיפת החלב`}
+            color="#f59e0b"
+            action="לפנקס החיסונים"
+            onAction={() => onNavigate?.('vaccinations')}
+          />
         </div>
       )}
 
@@ -209,9 +201,9 @@ export default function DashboardTab({ data, reload, family, activeBaby, babyNam
             ready={nextFeedIsNow}
             time={nextFeedTime ? fmt(nextFeedTime) : null}
             color={themeColor}
-            emptyText="לא תועדה האכלה"
-            readyText="הגיע זמן האכלה!"
-            pendingPrefix="האכלה הבאה"
+            emptyText="עדיין לא תועדה האכלה היום"
+            readyText="הגיע הזמן להאכיל! 🍼"
+            pendingPrefix="האכלה הבאה בערך ב-"
           />
         </BigCard>
 
@@ -228,41 +220,62 @@ export default function DashboardTab({ data, reload, family, activeBaby, babyNam
             <DiapChip icon="💩" count={poopCount} label="קקי" />
           </div>
           {diapers.length === 0 && (
-            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 8 }}>לא תועד חיתול</div>
+            <div style={{ fontSize: 11, color: '#6b7280', marginTop: 8 }}>עדיין לא תועד חיתול היום</div>
           )}
         </BigCard>
 
-        {/* Temperature */}
+        {/* Milestones */}
         <BigCard
-          icon="🌡️" title="חום"
-          accent={hasFever ? '#ef4444' : '#22c55e'}
-          status={hasFever ? (highFever ? 'danger' : 'warning') : 'ok'}
-          action={{ label: '+ מדוד', onClick: () => setShowTempForm(v => !v) }}
+          icon="🌟" title="אבני דרך"
+          onClick={() => onNavigate?.('growth')}
+          accent={themeColor}
+          status="ok"
         >
-          {lastTemp ? (
-            <>
-              <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1, color: hasFever ? '#ef4444' : '#22c55e' }}>
-                {lastTemp.temperature}°
-              </div>
-              <div style={{ fontSize: 11, color: hasFever ? '#ef4444' : '#22c55e', marginTop: 4, fontWeight: 700 }}>
-                {highFever ? '🔴 חום גבוה' : hasFever ? '⚠️ חום' : '✅ תקין'}
-              </div>
-              {hasFever && (paraCanGive || ibuCanGive) && (
-                <button onClick={() => setShowFeverModal(true)} style={{
-                  marginTop: 8, width: '100%', padding: '6px 0',
-                  background: '#ef4444', color: '#fff', border: 'none', borderRadius: 8,
-                  fontFamily: 'Heebo', fontSize: 11, fontWeight: 700, cursor: 'pointer'
-                }}>💊 טפל בחום</button>
-              )}
-              {hasFever && !paraCanGive && !ibuCanGive && (
-                <div style={{ fontSize: 10, color: '#f59e0b', marginTop: 6 }}>
-                  ⏰ מנה הבאה ב-{fmt(paraNextDate)}
+          {(() => {
+            const doneMilestoneIds = new Set((data.milestones || []).filter(bm => bm.baby_id === babyId).map(bm => bm.milestone_id))
+            // Current: milestones expected now (±2 months) that are NOT yet done
+            const current = MILESTONES.filter(m =>
+              months >= m.expectedMonth - 1 && months <= m.expectedMonth + 2 && !doneMilestoneIds.has(m.id)
+            )
+            // All current done → show next upcoming milestones (future, not yet due)
+            const allCurrentDone = current.length === 0
+            const upcoming = allCurrentDone
+              ? MILESTONES.filter(m => m.expectedMonth > months && !doneMilestoneIds.has(m.id)).slice(0, 4)
+              : null
+
+            const displayList = allCurrentDone ? upcoming : current.slice(0, 4)
+
+            if (!displayList || displayList.length === 0) return (
+              <div style={{ fontSize: 11, color: '#22c55e', marginTop: 4 }}>כל אבני הדרך לגיל הזה הושגו! 🎉</div>
+            )
+            return (
+              <>
+                {allCurrentDone ? (
+                  <div style={{ fontSize: 10, color: '#22c55e', marginBottom: 6, fontWeight: 700 }}>✅ כל הנוכחיות הושגו! הבאים בתור:</div>
+                ) : (
+                  <div style={{ fontSize: 10, color: '#f59e0b', marginBottom: 6, fontWeight: 700 }}>⏳ לגיל הנוכחי:</div>
+                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {displayList.map(m => (
+                    <div key={m.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 5 }}>
+                      <span style={{ fontSize: 10, flexShrink: 0, marginTop: 1 }}>⬜</span>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 10, color: '#e6edf3', wordBreak: 'keep-all', overflowWrap: 'anywhere' }}>{m.name}</div>
+                        {allCurrentDone && (
+                          <div style={{ fontSize: 9, color: '#6b7280', marginTop: 1 }}>גיל {m.expectedMonth} חודשים</div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </>
-          ) : (
-            <div style={{ fontSize: 13, color: '#6b7280', marginTop: 6 }}>לא נמדד</div>
-          )}
+                <button onClick={e => { e.stopPropagation(); onNavigate?.('growth') }} style={{
+                  marginTop: 8, background: 'none', border: `1px solid ${themeColor}50`,
+                  borderRadius: 6, padding: '4px 10px', color: themeColor,
+                  fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo', width: '100%'
+                }}>הצג הכל ›</button>
+              </>
+            )
+          })()}
         </BigCard>
 
         {/* Vitamins */}
@@ -272,7 +285,7 @@ export default function DashboardTab({ data, reload, family, activeBaby, babyNam
           status={requiredVitamins.length === 0 ? 'ok' : allVitsDone ? 'ok' : 'pending'}
         >
           {requiredVitamins.length === 0 ? (
-            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>אין ויטמינים לגיל זה</div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>אין ויטמינים לגיל הזה, הכל בסדר 🎉</div>
           ) : (
             <>
               <div style={{ fontSize: 28, fontWeight: 800, lineHeight: 1, color: allVitsDone ? '#22c55e' : '#a78bfa' }}>
@@ -303,6 +316,45 @@ export default function DashboardTab({ data, reload, family, activeBaby, babyNam
         </BigCard>
       </div>
 
+      {/* ── TEMPERATURE FULL-WIDTH ───────────────────────────────────── */}
+      <div style={{
+        background: '#161b22', border: `1px solid ${hasFever ? '#ef444440' : '#30363d'}`,
+        borderRadius: 14, padding: '14px 16px', marginBottom: 16
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 40, height: 40, borderRadius: 10,
+            background: hasFever ? '#ef444418' : '#21262d',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0
+          }}>🌡️</div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: '#6b7280' }}>טמפרטורה</div>
+            {lastTemp ? (
+              <div style={{ fontSize: 18, fontWeight: 800, color: hasFever ? '#ef4444' : '#22c55e', lineHeight: 1.2 }}>
+                {lastTemp.temperature}°C {hasFever && <span style={{ fontSize: 11, fontWeight: 600 }}>חום!</span>}
+              </div>
+            ) : (
+              <div style={{ fontSize: 13, color: '#6b7280' }}>טרם נמדד היום</div>
+            )}
+            {lastTemp && <div style={{ fontSize: 10, color: '#6b7280' }}>נמדד ב-{lastTemp.time}</div>}
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          {hasFever && (
+            <button onClick={() => setShowFeverModal(true)} style={{
+              flex: 1, background: '#ef444420', border: '1px solid #ef444440', borderRadius: 8,
+              padding: '8px 0', color: '#ef4444', fontSize: 13, fontWeight: 700,
+              cursor: 'pointer', fontFamily: 'Heebo'
+            }}>💊 טיפול בחום</button>
+          )}
+          <button onClick={() => setShowTempForm(v => !v)} style={{
+            flex: 1, background: '#21262d', border: '1px solid #30363d', borderRadius: 8,
+            padding: '8px 0', color: '#e6edf3', fontSize: 13, fontWeight: 700,
+            cursor: 'pointer', fontFamily: 'Heebo'
+          }}>+ מדוד</button>
+        </div>
+      </div>
+
       {/* ── TEMPERATURE QUICK-LOG ─────────────────────────────────── */}
       {showTempForm && (
         <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 14, padding: 14, marginBottom: 16 }}>
@@ -330,6 +382,66 @@ export default function DashboardTab({ data, reload, family, activeBaby, babyNam
               padding: '10px 18px', fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'Heebo'
             }}>{savingTemp ? '...' : 'שמור'}</button>
           </div>
+        </div>
+      )}
+
+      {/* ── TEMPERATURE LOG ──────────────────────────────────────── */}
+      {(temps.length > 0 || feverMeds.length > 0) && (
+        <div style={{ marginBottom: 16 }}>
+          {temps.length > 0 && (
+            <LogGroup color="#ef4444" label="מדידות חום">
+              {[...temps].sort((a,b) => b.time > a.time ? 1 : -1).map(t => {
+                const fever = parseFloat(t.temperature) >= 38
+                return (
+                  <LogRow key={t.id} time={t.time} onDelete={() => handleDeleteLog(t.id)}>
+                    <span style={{ fontSize: 15 }}>{fever ? '🔴' : '✅'}</span>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: fever ? '#ef4444' : '#22c55e', flex: 1 }}>
+                      {t.temperature}°C
+                    </span>
+                    {fever && <Chip color="#ef4444">חום</Chip>}
+                  </LogRow>
+                )
+              })}
+            </LogGroup>
+          )}
+          {feverMeds.length > 0 && (
+            <LogGroup color="#f59e0b" label="טיפולי חום">
+              {[...feverMeds].sort((a,b) => b.time > a.time ? 1 : -1).map(m => {
+                const isPara = m.medicine === 'paracetamol'
+                const nextD  = isPara ? paraNextDate : ibuNextDate
+                const canNow = !nextD || new Date() >= nextD
+                return (
+                  <div key={m.id}>
+                    <LogRow time={m.time} onDelete={() => handleDeleteLog(m.id)}>
+                      <span style={{ fontSize: 15 }}>{isPara ? '🟡' : '🟠'}</span>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: '#e6edf3' }}>
+                          {isPara ? 'נובימול / פרצטמול' : 'אקמולי / איבופרופן'}
+                        </div>
+                        {m.dose_ml && <div style={{ fontSize: 10, color: '#8b949e' }}>{m.dose_ml} מ"ל {m.dose_mg ? `(${m.dose_mg}מ"ג)` : ''}</div>}
+                      </div>
+                    </LogRow>
+                    {nextD && (
+                      <div style={{
+                        margin: '2px 0 6px 0', display: 'flex', alignItems: 'center', gap: 6,
+                        background: canNow ? '#22c55e18' : '#f59e0b18',
+                        border: `1px solid ${canNow ? '#22c55e30' : '#f59e0b30'}`,
+                        borderRadius: 6, padding: '4px 10px'
+                      }}>
+                        <span style={{ fontSize: 11 }}>{canNow ? '✅' : '⏰'}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: canNow ? '#22c55e' : '#f59e0b' }}>
+                          {canNow ? 'אפשר לתת עכשיו' : `אפשר לתת שוב ב-${fmt(nextD)}`}
+                        </span>
+                        <span style={{ fontSize: 10, color: '#6b7280', marginRight: 'auto' }}>
+                          {isPara ? '(כל 4ש)' : '(כל 6ש)'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </LogGroup>
+          )}
         </div>
       )}
 
@@ -368,7 +480,7 @@ export default function DashboardTab({ data, reload, family, activeBaby, babyNam
       )}
 
       {/* ── TODAY'S LOG ───────────────────────────────────────────── */}
-      {(feeds.length > 0 || diapers.length > 0 || temps.length > 0 || feverMeds.length > 0) && (
+      {(feeds.length > 0 || diapers.length > 0) && (
         <div style={{ marginBottom: 16 }}>
           <SectionHeader title="📋 יומן היום" />
 
@@ -402,68 +514,11 @@ export default function DashboardTab({ data, reload, family, activeBaby, babyNam
             </LogGroup>
           )}
 
-          {/* Temperatures */}
-          {temps.length > 0 && (
-            <LogGroup color="#ef4444" label="מדידות חום">
-              {[...temps].sort((a,b) => b.time > a.time ? 1 : -1).map(t => {
-                const fever = parseFloat(t.temperature) >= 38
-                return (
-                  <LogRow key={t.id} time={t.time} onDelete={() => handleDeleteLog(t.id)}>
-                    <span style={{ fontSize: 15 }}>{fever ? '🔴' : '✅'}</span>
-                    <span style={{ fontSize: 15, fontWeight: 800, color: fever ? '#ef4444' : '#22c55e', flex: 1 }}>
-                      {t.temperature}°C
-                    </span>
-                    {fever && <Chip color="#ef4444">חום</Chip>}
-                  </LogRow>
-                )
-              })}
-            </LogGroup>
-          )}
-
-          {/* Fever meds */}
-          {feverMeds.length > 0 && (
-            <LogGroup color="#f59e0b" label="טיפולי חום">
-              {[...feverMeds].sort((a,b) => b.time > a.time ? 1 : -1).map(m => {
-                const isPara  = m.medicine === 'paracetamol'
-                const nextD   = isPara ? paraNextDate : ibuNextDate
-                const canNow  = !nextD || new Date() >= nextD
-                return (
-                  <div key={m.id}>
-                    <LogRow time={m.time} onDelete={() => handleDeleteLog(m.id)}>
-                      <span style={{ fontSize: 15 }}>{isPara ? '🟡' : '🟠'}</span>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 13, fontWeight: 700, color: '#e6edf3' }}>
-                          {isPara ? 'נובימול / פרצטמול' : 'אקמולי / איבופרופן'}
-                        </div>
-                        {m.dose_ml && <div style={{ fontSize: 10, color: '#8b949e' }}>{m.dose_ml} מ"ל {m.dose_mg ? `(${m.dose_mg}מ"ג)` : ''}</div>}
-                      </div>
-                    </LogRow>
-                    {nextD && (
-                      <div style={{
-                        margin: '2px 0 6px 0', display: 'flex', alignItems: 'center', gap: 6,
-                        background: canNow ? '#22c55e18' : '#f59e0b18',
-                        border: `1px solid ${canNow ? '#22c55e30' : '#f59e0b30'}`,
-                        borderRadius: 6, padding: '4px 10px'
-                      }}>
-                        <span style={{ fontSize: 11 }}>{canNow ? '✅' : '⏰'}</span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: canNow ? '#22c55e' : '#f59e0b' }}>
-                          {canNow ? 'ניתן לתת מנה עכשיו' : `מנה הבאה ב-${fmt(nextD)}`}
-                        </span>
-                        <span style={{ fontSize: 10, color: '#6b7280', marginRight: 'auto' }}>
-                          {isPara ? '(כל 4ש)' : '(כל 6ש)'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </LogGroup>
-          )}
         </div>
       )}
 
       {/* Empty state */}
-      {feeds.length === 0 && diapers.length === 0 && temps.length === 0 && (
+      {feeds.length === 0 && diapers.length === 0 && (
         <div style={{ textAlign: 'center', padding: '28px 16px', color: '#6b7280' }}>
           <div style={{ fontSize: 36, marginBottom: 10 }}>📋</div>
           <div style={{ fontSize: 14, fontWeight: 600 }}>
@@ -534,7 +589,7 @@ export default function DashboardTab({ data, reload, family, activeBaby, babyNam
                   borderRadius: 8, padding: '9px 12px', color: '#e6edf3',
                   fontFamily: 'Heebo', fontSize: 14, outline: 'none', boxSizing: 'border-box', marginBottom: 10
                 }} />
-                <button onClick={handleGiveMed} disabled={savingMed} style={{
+                <button onClick={() => handleGiveMed()} disabled={savingMed} style={{
                   width: '100%', padding: '12px 0', background: savingMed ? '#4b2200' : '#f59e0b',
                   color: '#fff', border: 'none', borderRadius: 10,
                   fontFamily: 'Heebo', fontSize: 14, fontWeight: 700, cursor: 'pointer'

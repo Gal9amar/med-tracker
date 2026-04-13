@@ -37,15 +37,15 @@ export default function FeedingTab({ data, reload, family, activeBaby, themeColo
     setValidationError('')
     if (!activeBaby || !family) return
     if (form.food_type === 'breast' && !form.duration) {
-      setValidationError('נא להכניס משך האכלה בדקות')
+      setValidationError('כמה דקות האכלתם? 🤱')
       return
     }
     if (form.food_type !== 'breast' && !form.amount) {
-      setValidationError('נא להכניס כמות במ"ל')
+      setValidationError('כמה מ"ל שתה הילד/ה? 🍼')
       return
     }
     if (form.food_type !== 'breast' && parseFloat(form.amount) <= 0) {
-      setValidationError('הכמות חייבת להיות גדולה מ-0')
+      setValidationError('הכמות צריכה להיות יותר מ-0')
       return
     }
     setSaving(true)

@@ -256,6 +256,31 @@ export async function setUserSetting(userId, key, value) {
     .select().single()
 }
 
+// ─── DELETE ACCOUNT ──────────────────────────────────────────────────────────
+// Deletes ALL family data for the user, then signs out.
+// The auth user record itself is deleted via a Supabase Edge Function or
+// cascades via ON DELETE CASCADE on family_members → families.
+// We delete what RLS lets us delete directly from the client.
+
+export async function deleteAllFamilyData(familyId, userId) {
+  // Delete all family-scoped data in dependency order
+  const familyTables = [
+    'milestones', 'growth_log', 'vaccinations',
+    'prescriptions', 'med_log', 'meds',
+    'inventory', 'baby_log', 'babies',
+    'invite_codes', 'family_members',
+  ]
+  for (const table of familyTables) {
+    await supabase.from(table).delete().eq('family_id', familyId)
+  }
+  // Delete user-scoped settings
+  await supabase.from('user_settings').delete().eq('user_id', userId)
+  // Delete the family record itself
+  await supabase.from('families').delete().eq('id', familyId)
+  // Sign out
+  await supabase.auth.signOut()
+}
+
 // ─── MILESTONES ──────────────────────────────────────────────────────────────
 
 export async function getMilestones(familyId, babyId) {

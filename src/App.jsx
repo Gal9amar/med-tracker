@@ -6,7 +6,7 @@ import { generateVaccinations } from './data/vaccineSchedule'
 
 import AuthScreen from './components/AuthScreen'
 import FamilySetup from './components/FamilySetup'
-import BabySwitcher from './components/BabySwitcher'
+import BabySwitcher, { BabyAvatar } from './components/BabySwitcher'
 import HamburgerMenu from './components/HamburgerMenu'
 import NotificationsButton from './components/NotificationsButton'
 
@@ -39,6 +39,7 @@ export default function App() {
   })
   const [dataLoading, setDataLoading] = useState(false)
   const [tab, setTab] = useState('home')
+  const [growthView, setGrowthView] = useState('milestones')
   const [showSwitcher, setShowSwitcher] = useState(false)
   const [showMenu, setShowMenu] = useState(false)
   const [notifPrefs, setNotifPrefs] = useState({
@@ -188,6 +189,16 @@ export default function App() {
     setData({ babyLog: [], meds: [], medLog: [], prescriptions: [], inventory: [], vaccinations: [], growthLog: [], milestones: [] })
   }
 
+  const handleDeleteAccount = async () => {
+    if (!family || !user) return
+    await db.deleteAllFamilyData(family.id, user.id)
+    // signOut is called inside deleteAllFamilyData — auth listener clears user
+    setFamily(null)
+    setBabies([])
+    setData({ babyLog: [], meds: [], medLog: [], prescriptions: [], inventory: [], vaccinations: [], growthLog: [], milestones: [] })
+    localStorage.removeItem('babycare_active')
+  }
+
   // ── Theme color based on baby gender ────────────────────────────────────
   const themeColor      = genderColor(activeBaby?.gender)
   const themeColorLight = genderColorLight(activeBaby?.gender)
@@ -251,7 +262,7 @@ export default function App() {
             display: 'flex', alignItems: 'center', gap: 10,
             background: 'none', border: 'none', cursor: 'pointer', padding: 0
           }}>
-            <span style={{ fontSize: 36 }}>{activeBaby.avatar || '👶'}</span>
+            <BabyAvatar baby={activeBaby} size={40} />
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: 16, fontWeight: 800, color: themeColorLight }}>{babyName}</div>
               <div style={{ fontSize: 11, color: '#8b949e' }}>{ageLabel(activeBaby.birth_date)}</div>
@@ -303,7 +314,7 @@ export default function App() {
                   fontFamily: 'Heebo'
                 }}
               >
-                <span style={{ fontSize: 16 }}>{b.avatar || '👶'}</span>
+                <BabyAvatar baby={b} size={22} />
                 <span style={{ fontSize: 13, fontWeight: isActive ? 700 : 400, color: isActive ? color : '#8b949e' }}>
                   {b.name}
                 </span>
@@ -325,7 +336,7 @@ export default function App() {
             {tab === 'diapers'       && <DiapersTab        {...commonProps} />}
             {tab === 'health'        && <HealthTab         {...commonProps} />}
             {tab === 'vaccinations'  && <VaccinationsTab   {...commonProps} />}
-            {tab === 'growth'        && <GrowthTab         {...commonProps} />}
+            {tab === 'growth'        && <GrowthTab         {...commonProps} growthView={growthView} setGrowthView={setGrowthView} />}
           </>
         )}
       </div>
@@ -360,7 +371,7 @@ export default function App() {
           family={family} user={user}
           onSwitch={switchBaby}
           onBabyAdded={handleBabyAdded}
-          onClose={() => setShowSwitcher(false)}
+          onClose={async () => { setShowSwitcher(false); await loadBabies(family.id) }}
           themeColor={themeColor}
         />
       )}
@@ -373,6 +384,7 @@ export default function App() {
           onSignOut={handleSignOut}
           onManageBabies={() => { setShowMenu(false); setShowSwitcher(true) }}
           onOpenVaccinations={() => { setShowMenu(false); setTab('vaccinations') }}
+          onDeleteAccount={handleDeleteAccount}
         />
       )}
     </div>

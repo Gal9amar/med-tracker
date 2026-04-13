@@ -18,7 +18,7 @@ export default function FamilySetup({ user, onFamilyCreated, onSignOut }) {
   }
 
   const handleJoin = async () => {
-    if (!code.trim()) { setError('נא להכניס קוד הזמנה'); return }
+    if (!code.trim()) { setError('הכניסו את קוד ההזמנה שקיבלתם'); return }
     setLoading(true)
     setError('')
     const { data, error: err } = await db.joinByCode(code.trim(), user.id, displayName)
@@ -36,9 +36,9 @@ export default function FamilySetup({ user, onFamilyCreated, onSignOut }) {
       justifyContent: 'center', fontFamily: 'Heebo', direction: 'rtl', padding: 24
     }}>
       <div style={{ fontSize: 56, marginBottom: 8 }}>👨‍👩‍👧</div>
-      <div style={{ fontSize: 22, fontWeight: 800, color: '#f9a8d4', marginBottom: 4 }}>ברוך הבא, {displayName}!</div>
+      <div style={{ fontSize: 22, fontWeight: 800, color: '#f9a8d4', marginBottom: 4 }}>שלום {displayName}! 👋</div>
       <div style={{ fontSize: 13, color: '#6b7280', marginBottom: 32, textAlign: 'center' }}>
-        צור יחידה משפחתית חדשה או הצטרף לקיימת
+        בואו נפתח את המשפחה שלכם באפליקציה 🏠
       </div>
 
       {mode === null && (
@@ -46,15 +46,15 @@ export default function FamilySetup({ user, onFamilyCreated, onSignOut }) {
           <button onClick={() => setMode('create')} style={bigBtn('#a78bfa')}>
             <span style={{ fontSize: 24 }}>✨</span>
             <div>
-              <div style={{ fontWeight: 700 }}>צור משפחה חדשה</div>
-              <div style={{ fontSize: 12, opacity: 0.8 }}>הורה ראשון – צור את המשפחה</div>
+              <div style={{ fontWeight: 700 }}>פתחו משפחה חדשה</div>
+              <div style={{ fontSize: 12, opacity: 0.8 }}>רק הגעתם? התחילו כאן ✨</div>
             </div>
           </button>
           <button onClick={() => setMode('join')} style={bigBtn('#60a5fa')}>
             <span style={{ fontSize: 24 }}>🔗</span>
             <div>
-              <div style={{ fontWeight: 700 }}>הצטרף למשפחה קיימת</div>
-              <div style={{ fontSize: 12, opacity: 0.8 }}>קיבלת קוד הזמנה מהורה אחר</div>
+              <div style={{ fontWeight: 700 }}>הצטרפו למשפחה קיימת</div>
+              <div style={{ fontSize: 12, opacity: 0.8 }}>קיבלתם קוד מהורה אחר? היכנסו כאן 🔗</div>
             </div>
           </button>
         </div>
@@ -63,9 +63,9 @@ export default function FamilySetup({ user, onFamilyCreated, onSignOut }) {
       {mode === 'create' && (
         <div style={{ width: '100%', maxWidth: 320 }}>
           <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 16, padding: 24 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#e6edf3', marginBottom: 8 }}>יצירת משפחה חדשה</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#e6edf3', marginBottom: 8 }}>פותחים משפחה חדשה 🏠</div>
             <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 20 }}>
-              תוצר יחידה משפחתית, ותוכל להזמין הורים נוספים אחר כך
+              תוצרו יחידה משפחתית ותוכלו להזמין את ההורה השני בהמשך
             </div>
             {error && <div style={errStyle}>{error}</div>}
             <button onClick={handleCreate} disabled={loading} style={submitBtn}>
@@ -79,9 +79,9 @@ export default function FamilySetup({ user, onFamilyCreated, onSignOut }) {
       {mode === 'join' && (
         <div style={{ width: '100%', maxWidth: 320 }}>
           <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 16, padding: 24 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#e6edf3', marginBottom: 8 }}>הצטרפות למשפחה</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#e6edf3', marginBottom: 8 }}>הצטרפות למשפחה 🔗</div>
             <div style={{ fontSize: 13, color: '#8b949e', marginBottom: 16 }}>
-              הכנס את קוד ההזמנה שקיבלת
+              הכניסו את קוד ההזמנה שקיבלתם
             </div>
             <input
               value={code}
