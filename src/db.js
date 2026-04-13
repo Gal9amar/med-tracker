@@ -33,6 +33,21 @@ export async function upsertMember(userId, email, fullName) {
     .select().single()
 }
 
+export async function updateMemberProfile(userId, fullName) {
+  // Update members table
+  const { error: me } = await supabase
+    .from('members')
+    .update({ full_name: fullName })
+    .eq('id', userId)
+  if (me) return { error: me }
+  // Sync display_name in Auth metadata
+  const { error: ae } = await supabase.auth.updateUser({
+    data: { display_name: fullName }
+  })
+  if (ae) return { error: ae }
+  return { data: true }
+}
+
 export async function getMember(userId) {
   return supabase.from('members').select('*').eq('id', userId).maybeSingle()
 }

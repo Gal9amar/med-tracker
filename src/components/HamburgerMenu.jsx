@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import * as db from '../db'
 
 export default function HamburgerMenu({ user, family, babies, onClose, onSignOut, onManageBabies, onOpenVaccinations, onDeleteAccount }) {
-  const [view, setView] = useState('main') // 'main' | 'invite' | 'delete-account'
+  const [view, setView] = useState('main') // 'main' | 'invite' | 'delete-account' | 'edit-profile'
   const [inviteCode, setInviteCode] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
   const [inviteError, setInviteError] = useState('')
@@ -24,6 +24,10 @@ export default function HamburgerMenu({ user, family, babies, onClose, onSignOut
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [familyMembers, setFamilyMembers] = useState([])
+  const [editName, setEditName] = useState('')
+  const [editLoading, setEditLoading] = useState(false)
+  const [editError, setEditError] = useState('')
+  const [editSuccess, setEditSuccess] = useState(false)
 
   const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0]
 
@@ -89,10 +93,15 @@ export default function HamburgerMenu({ user, family, babies, onClose, onSignOut
             <div style={{ width: 38, height: 38, borderRadius: '50%', background: '#a78bfa33', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
               👤
             </div>
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: '#e6edf3' }}>{displayName}</div>
               <div style={{ fontSize: 11, color: '#6b7280' }}>{user?.email}</div>
             </div>
+            <button onClick={() => { setEditName(displayName || ''); setEditError(''); setEditSuccess(false); setView('edit-profile') }} style={{
+              background: '#21262d', border: '1px solid #30363d', borderRadius: 8,
+              padding: '5px 10px', color: '#8b949e', fontSize: 11,
+              cursor: 'pointer', fontFamily: 'Heebo', flexShrink: 0
+            }}>✏️ ערוך</button>
           </div>
         </div>
 
@@ -174,7 +183,7 @@ export default function HamburgerMenu({ user, family, babies, onClose, onSignOut
               )}
             </div>
 
-            <MenuItem icon="👶" label="ניהול תינוקות" onClick={onManageBabies} />
+            <MenuItem icon="👶" label="הילדים שלנו" onClick={onManageBabies} />
             <MenuItem icon="💉" label="פנקס חיסונים" onClick={onOpenVaccinations} />
             <MenuItem icon="🔗" label="הזמן הורה לשיתוף" onClick={() => setView('invite')} />
             <MenuItem icon="📤" label="ייצוא נתונים" onClick={handleExport} />
@@ -183,6 +192,73 @@ export default function HamburgerMenu({ user, family, babies, onClose, onSignOut
 
             <MenuItem icon="🚪" label="יציאה מהחשבון" onClick={onSignOut} color="#ef4444" />
             <MenuItem icon="🗑️" label="מחיקת חשבון וכל הנתונים" onClick={() => setView('delete-account')} color="#ef4444" />
+          </div>
+        )}
+
+        {view === 'edit-profile' && (
+          <div style={{ padding: 20 }}>
+            <button onClick={() => setView('main')} style={{ background: 'none', border: 'none', color: '#8b949e', fontSize: 13, cursor: 'pointer', fontFamily: 'Heebo', marginBottom: 20, padding: 0 }}>
+              ← חזור
+            </button>
+            <div style={{ fontSize: 16, fontWeight: 800, color: '#e6edf3', marginBottom: 4 }}>עריכת פרופיל</div>
+            <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 20 }}>עדכון שם תוצג לכל חברי המשפחה</div>
+
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>שם מלא</label>
+              <input
+                value={editName}
+                onChange={e => setEditName(e.target.value)}
+                placeholder="הכניסו שם מלא"
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ marginBottom: 20 }}>
+              <label style={labelStyle}>אימייל</label>
+              <div style={{ ...inputStyle, color: '#6b7280', cursor: 'not-allowed', display: 'flex', alignItems: 'center' }}>
+                {user?.email}
+              </div>
+              <div style={{ fontSize: 11, color: '#6b7280', marginTop: 5 }}>
+                לשינוי כתובת מייל יש לפנות לתמיכה
+              </div>
+            </div>
+
+            {editError && (
+              <div style={{ background: '#ef444418', border: '1px solid #ef444440', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#ef4444' }}>
+                {editError}
+              </div>
+            )}
+            {editSuccess && (
+              <div style={{ background: '#22c55e18', border: '1px solid #22c55e40', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: '#22c55e' }}>
+                ✅ הפרטים עודכנו בהצלחה
+              </div>
+            )}
+
+            <button
+              onClick={async () => {
+                if (!editName.trim()) { setEditError('יש להכניס שם'); return }
+                setEditLoading(true)
+                setEditError('')
+                setEditSuccess(false)
+                const { error } = await db.updateMemberProfile(user.id, editName.trim())
+                setEditLoading(false)
+                if (error) { setEditError(error.message); return }
+                setEditSuccess(true)
+                // Refresh family members list
+                const { data } = await db.getFamilyMembers(family.id)
+                if (data) setFamilyMembers(data)
+              }}
+              disabled={editLoading}
+              style={{
+                width: '100%', padding: '13px 0',
+                background: editLoading ? '#3b2f6e' : '#a78bfa',
+                color: '#fff', border: 'none', borderRadius: 12,
+                fontFamily: 'Heebo', fontSize: 15, fontWeight: 700,
+                cursor: editLoading ? 'default' : 'pointer'
+              }}
+            >
+              {editLoading ? '...' : '💾 שמור שינויים'}
+            </button>
           </div>
         )}
 
@@ -331,4 +407,15 @@ function MenuItem({ icon, label, onClick, color }) {
 const errStyle = {
   background: '#ef444418', border: '1px solid #ef444440',
   borderRadius: 8, padding: '8px 12px', fontSize: 13, color: '#ef4444', marginBottom: 12
+}
+
+const labelStyle = {
+  display: 'block', fontSize: 12, color: '#8b949e', marginBottom: 6, fontWeight: 600
+}
+
+const inputStyle = {
+  width: '100%', background: '#0d1117', border: '1px solid #30363d',
+  borderRadius: 10, padding: '11px 13px', color: '#e6edf3',
+  fontFamily: 'Heebo', fontSize: 14, outline: 'none',
+  boxSizing: 'border-box'
 }
