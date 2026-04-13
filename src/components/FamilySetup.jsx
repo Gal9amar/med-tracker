@@ -13,9 +13,10 @@ export default function FamilySetup({ user, onFamilyCreated, onSignOut }) {
     setLoading(true)
     setError('')
     // Ensure member record exists (handles email-confirmed users who bypassed AuthScreen upsert)
-    await db.upsertMember(user.id, user.email, displayName)
+    const { data: memberData, error: memberErr } = await db.upsertMember(user.id, user.email, displayName)
+    if (memberErr) { setError('שגיאה ביצירת פרופיל משתמש: ' + (memberErr.message || JSON.stringify(memberErr))); setLoading(false); return }
     const { data: family, error: err } = await db.createFamily(user.id, displayName)
-    if (err) { setError(err.message); setLoading(false); return }
+    if (err) { setError('שגיאה ביצירת משפחה: ' + (err.message || JSON.stringify(err))); setLoading(false); return }
     onFamilyCreated(family)
   }
 
