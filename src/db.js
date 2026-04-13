@@ -40,14 +40,23 @@ export async function getMember(userId) {
 // ─── FAMILY ──────────────────────────────────────────────────────────────────
 
 export async function createFamily(userId, displayName) {
-  // 1. Create family
-  const { data: family, error: fe } = await supabase
+  // 1. Create family (no .select() — RLS blocks SELECT until member row exists)
+  const { error: fe } = await supabase
     .from('families')
     .insert({ name: 'המשפחה שלנו', created_by: userId })
-    .select().single()
   if (fe) return { error: fe }
 
-  // 2. Add creator as admin member
+  // 2. Fetch the family we just created (created_by = userId, most recent)
+  const { data: family, error: fe2 } = await supabase
+    .from('families')
+    .select('*')
+    .eq('created_by', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single()
+  if (fe2) return { error: fe2 }
+
+  // 3. Add creator as admin member
   const { error: me } = await supabase
     .from('family_members')
     .insert({ family_id: family.id, member_id: userId, role: 'admin', display_name: displayName })
