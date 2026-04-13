@@ -22,6 +22,7 @@ export default function NotificationsButton({
   const [draft, setDraft]         = useState(null)
   const [saving, setSaving]       = useState(false)
   const [enableError, setEnableError] = useState('')
+  const [testStatus, setTestStatus] = useState('')
 
   const isGranted = permission === 'granted'
   const isSecure = typeof window !== 'undefined' ? window.isSecureContext !== false : true
@@ -48,6 +49,7 @@ export default function NotificationsButton({
 
   const openPanel = () => {
     setEnableError('')
+    setTestStatus('')
     if (supported) setPermission(Notification.permission)
     setDraft({ ...notifPrefs })
     setShowPanel(true)
@@ -55,6 +57,8 @@ export default function NotificationsButton({
 
   const handleClose = () => {
     setDraft(null)
+    setEnableError('')
+    setTestStatus('')
     setShowPanel(false)
   }
 
@@ -68,6 +72,7 @@ export default function NotificationsButton({
 
   const handleEnable = async () => {
     setEnableError('')
+    setTestStatus('')
     if (!supported) {
       setEnableError('הדפדפן לא תומך בהתראות')
       return
@@ -92,15 +97,51 @@ export default function NotificationsButton({
     }
   }
 
-  const testNotification = () => {
+  const testNotification = async () => {
+    setTestStatus('')
     try {
-      new Notification('✅ בדיקת התראות — BabyCare', {
+      if (!supported) {
+        setTestStatus('❌ הדפדפן לא תומך בהתראות')
+        return
+      }
+      if (!isSecure) {
+        setTestStatus('❌ צריך HTTPS כדי להציג התראות')
+        return
+      }
+      if (Notification.permission !== 'granted') {
+        setTestStatus(`❌ אין הרשאה (סטטוס: ${Notification.permission})`)
+        return
+      }
+
+      const title = '✅ בדיקת התראות — BabyCare'
+      const opts = {
         body: 'אם ראית את זה — ההתראות עובדות במכשיר הזה.',
         icon: '/images/BabyCareLogo.png',
         tag: 'babycare-test',
-      })
-    } catch {
-      // ignore
+        renotify: true,
+      }
+
+      // Try window Notification first
+      try {
+        new Notification(title, opts)
+        setTestStatus('✅ נשלח (Notification API)')
+        return
+      } catch (e) {
+        // Fallback to SW registration (more reliable in some contexts)
+        try {
+          const reg = await navigator.serviceWorker?.ready
+          await reg?.showNotification?.(title, opts)
+          setTestStatus('✅ נשלח (Service Worker)')
+          return
+        } catch (e2) {
+          const msg = (e2 && typeof e2 === 'object' && 'message' in e2) ? String(e2.message) : 'נחסם ע"י הדפדפן/מערכת'
+          setTestStatus(`❌ נכשל: ${msg}`)
+          return
+        }
+      }
+    } catch (e) {
+      const msg = (e && typeof e === 'object' && 'message' in e) ? String(e.message) : 'שגיאה לא ידועה'
+      setTestStatus(`❌ נכשל: ${msg}`)
     }
   }
 
@@ -162,6 +203,12 @@ export default function NotificationsButton({
             {enableError && (
               <div style={{ background: '#ef444418', border: '1px solid #ef444440', borderRadius: 10, padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#ef4444' }}>
                 {enableError}
+              </div>
+            )}
+
+            {testStatus && (
+              <div style={{ background: '#0d1117', border: '1px solid #30363d', borderRadius: 10, padding: '10px 12px', marginBottom: 12, fontSize: 12, color: '#e6edf3' }}>
+                {testStatus}
               </div>
             )}
 
