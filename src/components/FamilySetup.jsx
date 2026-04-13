@@ -12,6 +12,8 @@ export default function FamilySetup({ user, onFamilyCreated, onSignOut }) {
   const handleCreate = async () => {
     setLoading(true)
     setError('')
+    // Ensure member record exists (handles email-confirmed users who bypassed AuthScreen upsert)
+    await db.upsertMember(user.id, user.email, displayName)
     const { data: family, error: err } = await db.createFamily(user.id, displayName)
     if (err) { setError(err.message); setLoading(false); return }
     onFamilyCreated(family)
@@ -21,6 +23,8 @@ export default function FamilySetup({ user, onFamilyCreated, onSignOut }) {
     if (!code.trim()) { setError('הכניסו את קוד ההזמנה שקיבלתם'); return }
     setLoading(true)
     setError('')
+    // Ensure member record exists before joining
+    await db.upsertMember(user.id, user.email, displayName)
     const { data, error: err } = await db.joinByCode(code.trim(), user.id, displayName)
     if (err) { setError(err.message); setLoading(false); return }
     // Reload family
