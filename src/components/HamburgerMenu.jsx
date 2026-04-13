@@ -6,6 +6,7 @@ export default function HamburgerMenu({ user, family, babies, onClose, onSignOut
   const [inviteCode, setInviteCode] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
   const [inviteError, setInviteError] = useState('')
+  const [copied, setCopied] = useState(false)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [deleteConfirmText, setDeleteConfirmText] = useState('')
 
@@ -159,11 +160,20 @@ export default function HamburgerMenu({ user, family, babies, onClose, onSignOut
                   {inviteCode}
                 </div>
                 <div style={{ fontSize: 12, color: '#6b7280', marginBottom: 16 }}>תקף ל-48 שעות · שימוש חד-פעמי</div>
-                <button onClick={() => navigator.clipboard?.writeText(inviteCode)} style={{
-                  background: '#21262d', border: '1px solid #30363d', borderRadius: 10,
-                  padding: '10px 20px', color: '#e6edf3', fontFamily: 'Heebo', fontSize: 13,
-                  cursor: 'pointer'
-                }}>📋 העתק קוד</button>
+                <button onClick={async () => {
+                  await navigator.clipboard?.writeText(inviteCode)
+                  setCopied(true)
+                  setTimeout(() => setCopied(false), 2500)
+                }} style={{
+                  background: copied ? '#22c55e22' : '#21262d',
+                  border: `1px solid ${copied ? '#22c55e' : '#30363d'}`,
+                  borderRadius: 10, padding: '10px 20px',
+                  color: copied ? '#22c55e' : '#e6edf3',
+                  fontFamily: 'Heebo', fontSize: 13, cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}>
+                  {copied ? '✅ הקוד הועתק!' : '📋 העתק קוד'}
+                </button>
                 <br />
                 <button onClick={() => setInviteCode('')} style={{ marginTop: 12, background: 'none', border: 'none', color: '#6b7280', fontSize: 12, cursor: 'pointer', fontFamily: 'Heebo' }}>
                   צור קוד חדש
