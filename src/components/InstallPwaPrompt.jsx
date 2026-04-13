@@ -36,10 +36,7 @@ export default function InstallPwaPrompt() {
     // On Chrome/Edge: show our popup even before beforeinstallprompt,
     // but enable the install button only after the event arrives.
     const dismissed = localStorage.getItem('babycare_install_dismissed') === '1'
-    if (!dismissed) {
-      const t = setTimeout(() => setVisible(true), 1200)
-      return () => clearTimeout(t)
-    }
+    const t = !dismissed ? setTimeout(() => setVisible(true), 1200) : null
 
     const onBeforeInstallPrompt = (e) => {
       e.preventDefault()
@@ -48,8 +45,19 @@ export default function InstallPwaPrompt() {
       if (!dismissed2) setVisible(true)
     }
 
+    const onAppInstalled = () => {
+      localStorage.setItem('babycare_install_dismissed', '1')
+      setDeferredPrompt(null)
+      setVisible(false)
+    }
+
     window.addEventListener('beforeinstallprompt', onBeforeInstallPrompt)
-    return () => window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt)
+    window.addEventListener('appinstalled', onAppInstalled)
+    return () => {
+      window.removeEventListener('beforeinstallprompt', onBeforeInstallPrompt)
+      window.removeEventListener('appinstalled', onAppInstalled)
+      if (t) clearTimeout(t)
+    }
   }, [canShow])
 
   const dismiss = () => {
